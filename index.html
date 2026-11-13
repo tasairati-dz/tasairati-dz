@@ -48,9 +48,9 @@
     <div id="toast-box" class="px-4 py-3 rounded-xl shadow-lg text-white text-sm font-bold text-center"></div>
   </div>
 
-  <!-- نافذة منبثقة لزيارة ملف المستخدم / التاجر -->
+  <!-- نافذة منبثقة لزيارة ملف المستخدم والتقييمات -->
   <div id="profile-modal" class="fixed inset-0 bg-black/50 z-50 hidden flex items-center justify-center p-4">
-    <div id="profile-modal-content" class="bg-white rounded-2xl w-full max-w-sm p-5 space-y-4 shadow-2xl relative">
+    <div id="profile-modal-content" class="bg-white rounded-2xl w-full max-w-sm p-5 space-y-4 shadow-2xl relative max-h-[90vh] overflow-y-auto">
       <button onclick="closeProfileModal()" class="absolute top-3 left-3 text-gray-400 hover:text-gray-600 font-bold text-lg">✕</button>
       <div id="modal-profile-body" class="text-center"></div>
     </div>
@@ -243,11 +243,8 @@
       });
     }
 
-    // خاصية طلب الموقع الجغرافي الفعلي (GPS)
     function requestUserGPSLocation() {
-      if (!navigator.geolocation) {
-        return showToast('متصفحك لا يدعم تحديد الموقع الجغرافي', true);
-      }
+      if (!navigator.geolocation) return showToast('متصفحك لا يدعم تحديد الموقع', true);
       showToast('📍 جاري تحديد موقعك الفعلي المباشر...');
       navigator.geolocation.getCurrentPosition(async (position) => {
         const lat = position.coords.latitude;
@@ -259,39 +256,106 @@
         }
         showToast('✅ تم تثبيت موقعك المباشر بنجاح!');
       }, (error) => {
-        showToast('يرجى السماح للتطبيق بالوصول للموقع من إعدادات المتصفح', true);
+        showToast('يرجى السماح بالوصول للموقع من المتصفح', true);
       }, { timeout: 10000 });
     }
 
-    // فتح نافذة زيارة الملف الشخصي لأي مستخدم
+    // عرض ملف المستخدم مع التقييمات
     async function viewUserProfile(userId) {
-      const { data, error } = await sb.from('profiles').select('*').eq('id', userId).single();
-      if (error || !data) return showToast('تعذر تحميل بيانات الملف الشخصي', true);
+      const { data: userData, error } = await sb.from('profiles').select('*').eq('id', userId).single();
+      if (error || !userData) return showToast('تعذر تحميل الملف الشخصي', true);
 
-      const isMer = data.role === 'merchant';
-      const avatarH = data.avatar_url 
-        ? `<img src="${data.avatar_url}" class="w-20 h-20 rounded-full object-cover mx-auto border-2 border-emerald-500 shadow-sm mb-3">`
-        : `<div class="w-20 h-20 bg-emerald-100 text-emerald-700 rounded-full mx-auto flex items-center justify-center text-3xl font-extrabold mb-3">${isMer ? '🏪' : '👤'}</div>`;
+      // جلب تقييمات التاجر
+      const { data: reviewsData } = await sb.from('merchant_reviews').select('*, profiles:customer_id(full_name)').eq('merchant_id', userId).order('created_at', { ascending: false });
+      const reviews = reviewsData || [];
+      let avgRating = 5;
+      if (reviews.length > 0) {
+        const sum = reviews.reduce((acc, r) => acc + r.rating, 0);
+        avgRating = (sum / reviews.length).toFixed(1);
+      }
 
-      const waPhone = formatDzWhatsApp(data.phone || '');
+      const isMer = userData.role === 'merchant';
+      const avatarH = userData.avatar_url 
+        ? `<img src="${userData.avatar_url}" class="w-20 h-20 rounded-full object-cover mx-auto border-2 border-emerald-500 shadow-sm mb-2">`
+        : `<div class="w-20 h-20 bg-emerald-100 text-emerald-700 rounded-full mx-auto flex items-center justify-center text-3xl font-extrabold mb-2">${isMer ? '🏪' : '👤'}</div>`;
+
+      const waPhone = formatDzWhatsApp(userData.phone || '');
 
       document.getElementById('modal-profile-body').innerHTML = `
         ${avatarH}
-        <h3 class="font-extrabold text-base text-gray-900">${data.shop_name || data.full_name}</h3>
-        <span class="text-[10px] bg-emerald-50 text-emerald-700 font-bold px-2.5 py-0.5 rounded-full">${isMer ? 'تاجر معتمد' : 'زبون'}</span>
+        <h3 class="font-extrabold text-base text-gray-900">${userData.shop_name || userData.full_name}</h3>
+        <div class="flex items-center justify-center gap-1 my-1">
+          <span class="text-amber-500 font-extrabold">★ ${reviews.length > 0 ? avgRating : '5.0'}</span>
+          <span class="text-xs text-gray-400">(${reviews.length} تقييمات)</span>
+        </div>
         
-        <div class="mt-4 text-right space-y-2 bg-gray-50 p-3 rounded-xl text-xs">
-          <div class="flex justify-between"><span class="text-gray-400">الاسم:</span><span class="font-bold">${data.full_name}</span></div>
-          ${isMer ? `<div class="flex justify-between"><span class="text-gray-400">التخصص:</span><span class="font-bold">${data.category || '-'}</span></div>` : ''}
-          <div class="flex justify-between"><span class="text-gray-400">المنطقة:</span><span class="font-bold">${data.wilaya} ${data.municipality ? '- ' + data.municipality : ''}</span></div>
+        <div class="mt-3 text-right space-y-1.5 bg-gray-50 p-3 rounded-xl text-xs">
+          <div class="flex justify-between"><span class="text-gray-400">الاسم:</span><span class="font-bold">${userData.full_name}</span></div>
+          ${isMer ? `<div class="flex justify-between"><span class="text-gray-400">التخصص:</span><span class="font-bold">${userData.category || '-'}</span></div>` : ''}
+          <div class="flex justify-between"><span class="text-gray-400">المنطقة:</span><span class="font-bold">${userData.wilaya} ${userData.municipality ? '- ' + userData.municipality : ''}</span></div>
         </div>
 
-        <div class="grid grid-cols-2 gap-2 mt-4">
-          <a href="tel:${data.phone || ''}" class="bg-emerald-600 text-white py-2 rounded-xl text-xs font-bold text-center">📞 اتصال</a>
+        <div class="grid grid-cols-2 gap-2 mt-3">
+          <a href="tel:${userData.phone || ''}" class="bg-emerald-600 text-white py-2 rounded-xl text-xs font-bold text-center">📞 اتصال</a>
           <a href="https://wa.me/${waPhone}" target="_blank" class="bg-[#25D366] text-white py-2 rounded-xl text-xs font-bold text-center">💬 واتساب</a>
         </div>
+
+        ${isMer ? `
+          <div class="mt-4 pt-3 border-t border-gray-100 text-right">
+            <h4 class="font-bold text-xs text-gray-700 mb-2">آراء الزبائن:</h4>
+            <div class="space-y-2 max-h-36 overflow-y-auto hide-scroll">
+              ${reviews.length === 0 ? `<p class="text-[11px] text-gray-400 text-center py-2">لا توجد تقييمات حتى الآن</p>` :
+                reviews.map(rev => `
+                  <div class="bg-gray-50 p-2 rounded-lg border border-gray-100 text-[11px]">
+                    <div class="flex justify-between font-bold text-gray-800">
+                      <span>${rev.profiles?.full_name || 'زبون'}</span>
+                      <span class="text-amber-500">${'★'.repeat(rev.rating)}</span>
+                    </div>
+                    <p class="text-gray-600 mt-1">${rev.comment || 'بدون تعليق'}</p>
+                  </div>
+                `).join('')
+              }
+            </div>
+
+            ${currentProfile.role === 'customer' ? `
+              <div class="mt-3 bg-emerald-50/50 p-2.5 rounded-xl border border-emerald-100 space-y-2">
+                <div class="text-[11px] font-bold text-emerald-800">أضف تقييمك لهذا التاجر:</div>
+                <div class="flex gap-1 justify-center">
+                  <select id="new-rating" class="px-2 py-1 rounded border text-xs bg-white">
+                    <option value="5">⭐⭐⭐⭐⭐ (ممتاز)</option>
+                    <option value="4">⭐⭐⭐⭐ (جيد جداً)</option>
+                    <option value="3">⭐⭐⭐ (متوسط)</option>
+                    <option value="2">⭐⭐ (ضعيف)</option>
+                    <option value="1">⭐ (سيء)</option>
+                  </select>
+                </div>
+                <input id="new-comment" type="text" placeholder="اكتب تعليقك هنا..." class="w-full px-2 py-1.5 rounded border border-gray-200 text-xs bg-white outline-none">
+                <button onclick="submitReview('${userId}')" class="w-full bg-emerald-600 text-white py-1.5 rounded text-xs font-bold">إرسال التقييم</button>
+              </div>
+            ` : ''}
+          </div>
+        ` : ''}
       `;
       document.getElementById('profile-modal').classList.remove('hidden');
+    }
+
+    async function submitReview(merchantId) {
+      const rating = Number(document.getElementById('new-rating').value);
+      const comment = document.getElementById('new-comment').value.trim();
+
+      const { error } = await sb.from('merchant_reviews').insert({
+        merchant_id: merchantId,
+        customer_id: currentProfile.id,
+        rating,
+        comment
+      });
+
+      if (error) {
+        showToast('خطأ في إرسال التقييم: ' + error.message, true);
+      } else {
+        showToast('تم إضافة تقييمك بنجاح!');
+        closeProfileModal();
+      }
     }
 
     function closeProfileModal() {
@@ -525,8 +589,6 @@
           const { data } = await query;
           const allReqs = data || [];
           openRequests = allReqs.filter(r => r.status === 'open');
-          
-          // طلبات التاجر التي أرسل لها عرضاً وتم قبولها
           historyRequests = allReqs.filter(r => {
             const hasMySelectedOffer = (r.quote_offers || []).some(o => o.merchant_id === currentProfile.id && o.status === 'selected');
             return hasMySelectedOffer || r.status === 'accepted';
@@ -561,7 +623,6 @@
       }
     }
 
-    // عرض سجل الطلبات السابقة
     function renderHistoryView() {
       if (historyRequests.length === 0) {
         return `<div class="text-center py-12 bg-white rounded-2xl border border-gray-100 p-6">
@@ -787,7 +848,7 @@
                             ${merchantAvatar}
                             <div>
                               ${idx === 0 ? `<span class="text-[10px] bg-emerald-600 text-white font-bold px-2 py-0.5 rounded-full">★ أفضل سعر</span>` : ''}
-                              <div class="font-extrabold text-sm text-gray-900 mt-0.5 cursor-pointer hover:text-emerald-600" onclick="viewUserProfile('${of.merchant_id}')">${of.profiles?.shop_name || 'محل تجاري'} 👤</div>
+                              <div class="font-extrabold text-sm text-gray-900 mt-0.5 cursor-pointer hover:text-emerald-600" onclick="viewUserProfile('${of.merchant_id}')">${of.profiles?.shop_name || 'محل تجاري'} ⭐</div>
                               <div class="text-[11px] text-gray-500">${of.profiles?.municipality || ''} • ${of.delivery_available ? '🚚 التوصيل متوفر' : '🏪 استلام من المحل'}</div>
                             </div>
                           </div>
