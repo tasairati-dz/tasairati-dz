@@ -48,6 +48,14 @@
     <div id="toast-box" class="px-4 py-3 rounded-xl shadow-lg text-white text-sm font-bold text-center"></div>
   </div>
 
+  <!-- نافذة منبثقة لزيارة ملف المستخدم / التاجر -->
+  <div id="profile-modal" class="fixed inset-0 bg-black/50 z-50 hidden flex items-center justify-center p-4">
+    <div id="profile-modal-content" class="bg-white rounded-2xl w-full max-w-sm p-5 space-y-4 shadow-2xl relative">
+      <button onclick="closeProfileModal()" class="absolute top-3 left-3 text-gray-400 hover:text-gray-600 font-bold text-lg">✕</button>
+      <div id="modal-profile-body" class="text-center"></div>
+    </div>
+  </div>
+
   <!-- شاشة التحميل -->
   <div id="loading-screen" class="fixed inset-0 bg-white z-50 flex flex-col items-center justify-center">
     <div class="w-16 h-16 bg-emerald-600 rounded-2xl flex items-center justify-center text-white text-2xl font-extrabold shadow-lg mb-3 animate-bounce">DZ</div>
@@ -162,7 +170,10 @@
           <p id="header-subtitle" class="text-xs text-emerald-100 mt-0.5"></p>
         </div>
       </div>
-      <button onclick="loadAllData()" class="bg-white/15 p-2 rounded-xl text-xs font-bold active:scale-95">🔄 تحديث</button>
+      <div class="flex items-center gap-1.5">
+        <button onclick="requestUserGPSLocation()" class="bg-white/15 p-2 rounded-xl text-xs font-bold active:scale-95" title="تفعيل الموقع المباشر">📍</button>
+        <button onclick="loadAllData()" class="bg-white/15 p-2 rounded-xl text-xs font-bold active:scale-95">🔄</button>
+      </div>
     </header>
 
     <main id="main-content" class="p-4"></main>
@@ -204,6 +215,7 @@
     let editAvatarBase64 = null;
     let myRequests = [];
     let openRequests = [];
+    let historyRequests = [];
     let showAllWilayas = false;
 
     function formatDzWhatsApp(phone) {
@@ -229,6 +241,61 @@
         sel.innerHTML = WILAYAS.map(w => `<option value="${w}">${w}</option>`).join('');
         if (curVal) sel.value = curVal;
       });
+    }
+
+    // خاصية طلب الموقع الجغرافي الفعلي (GPS)
+    function requestUserGPSLocation() {
+      if (!navigator.geolocation) {
+        return showToast('متصفحك لا يدعم تحديد الموقع الجغرافي', true);
+      }
+      showToast('📍 جاري تحديد موقعك الفعلي المباشر...');
+      navigator.geolocation.getCurrentPosition(async (position) => {
+        const lat = position.coords.latitude;
+        const lon = position.coords.longitude;
+        if (currentProfile) {
+          await sb.from('profiles').update({ latitude: lat, longitude: lon }).eq('id', currentProfile.id);
+          currentProfile.latitude = lat;
+          currentProfile.longitude = lon;
+        }
+        showToast('✅ تم تثبيت موقعك المباشر بنجاح!');
+      }, (error) => {
+        showToast('يرجى السماح للتطبيق بالوصول للموقع من إعدادات المتصفح', true);
+      }, { timeout: 10000 });
+    }
+
+    // فتح نافذة زيارة الملف الشخصي لأي مستخدم
+    async function viewUserProfile(userId) {
+      const { data, error } = await sb.from('profiles').select('*').eq('id', userId).single();
+      if (error || !data) return showToast('تعذر تحميل بيانات الملف الشخصي', true);
+
+      const isMer = data.role === 'merchant';
+      const avatarH = data.avatar_url 
+        ? `<img src="${data.avatar_url}" class="w-20 h-20 rounded-full object-cover mx-auto border-2 border-emerald-500 shadow-sm mb-3">`
+        : `<div class="w-20 h-20 bg-emerald-100 text-emerald-700 rounded-full mx-auto flex items-center justify-center text-3xl font-extrabold mb-3">${isMer ? '🏪' : '👤'}</div>`;
+
+      const waPhone = formatDzWhatsApp(data.phone || '');
+
+      document.getElementById('modal-profile-body').innerHTML = `
+        ${avatarH}
+        <h3 class="font-extrabold text-base text-gray-900">${data.shop_name || data.full_name}</h3>
+        <span class="text-[10px] bg-emerald-50 text-emerald-700 font-bold px-2.5 py-0.5 rounded-full">${isMer ? 'تاجر معتمد' : 'زبون'}</span>
+        
+        <div class="mt-4 text-right space-y-2 bg-gray-50 p-3 rounded-xl text-xs">
+          <div class="flex justify-between"><span class="text-gray-400">الاسم:</span><span class="font-bold">${data.full_name}</span></div>
+          ${isMer ? `<div class="flex justify-between"><span class="text-gray-400">التخصص:</span><span class="font-bold">${data.category || '-'}</span></div>` : ''}
+          <div class="flex justify-between"><span class="text-gray-400">المنطقة:</span><span class="font-bold">${data.wilaya} ${data.municipality ? '- ' + data.municipality : ''}</span></div>
+        </div>
+
+        <div class="grid grid-cols-2 gap-2 mt-4">
+          <a href="tel:${data.phone || ''}" class="bg-emerald-600 text-white py-2 rounded-xl text-xs font-bold text-center">📞 اتصال</a>
+          <a href="https://wa.me/${waPhone}" target="_blank" class="bg-[#25D366] text-white py-2 rounded-xl text-xs font-bold text-center">💬 واتساب</a>
+        </div>
+      `;
+      document.getElementById('profile-modal').classList.remove('hidden');
+    }
+
+    function closeProfileModal() {
+      document.getElementById('profile-modal').classList.add('hidden');
     }
 
     async function initApp() {
@@ -355,6 +422,7 @@
 
           currentUser = data.user;
           showToast('تم إنشاء حسابك بنجاح!');
+          requestUserGPSLocation();
           await loadUserProfile();
         }
       } catch (err) {
@@ -400,18 +468,24 @@
       if (isMerchant) {
         nav.innerHTML = `
           <button onclick="switchTab('home')" id="nav-home" class="flex flex-col items-center text-emerald-600 font-bold text-xs">
-            <span class="text-xl mb-0.5">📥</span><span>طلبات الزبائن</span>
+            <span class="text-xl mb-0.5">📥</span><span>الطلبات</span>
+          </button>
+          <button onclick="switchTab('history')" id="nav-history" class="flex flex-col items-center text-gray-400 font-bold text-xs">
+            <span class="text-xl mb-0.5">📜</span><span>السجل</span>
           </button>
           <button onclick="switchTab('profile')" id="nav-profile" class="flex flex-col items-center text-gray-400 font-bold text-xs">
-            <span class="text-xl mb-0.5">🏪</span><span>محلي وحسابي</span>
+            <span class="text-xl mb-0.5">🏪</span><span>حسابي</span>
           </button>`;
       } else {
         nav.innerHTML = `
           <button onclick="switchTab('home')" id="nav-home" class="flex flex-col items-center text-emerald-600 font-bold text-xs">
-            <span class="text-xl mb-0.5">➕</span><span>طلب تسعيرة</span>
+            <span class="text-xl mb-0.5">➕</span><span>طلب جديد</span>
           </button>
           <button onclick="switchTab('orders')" id="nav-orders" class="flex flex-col items-center text-gray-400 font-bold text-xs">
             <span class="text-xl mb-0.5">📋</span><span>طلباتي والعروض</span>
+          </button>
+          <button onclick="switchTab('history')" id="nav-history" class="flex flex-col items-center text-gray-400 font-bold text-xs">
+            <span class="text-xl mb-0.5">📜</span><span>السجل</span>
           </button>
           <button onclick="switchTab('profile')" id="nav-profile" class="flex flex-col items-center text-gray-400 font-bold text-xs">
             <span class="text-xl mb-0.5">👤</span><span>حسابي</span>
@@ -421,7 +495,8 @@
 
     function switchTab(tab) {
       currentTab = tab;
-      ['home', 'orders', 'profile'].forEach(t => {
+      const tabsList = currentProfile.role === 'merchant' ? ['home', 'history', 'profile'] : ['home', 'orders', 'history', 'profile'];
+      tabsList.forEach(t => {
         const el = document.getElementById(`nav-${t}`);
         if (el) el.className = `flex flex-col items-center font-bold text-xs ${t === tab ? 'text-emerald-600' : 'text-gray-400'}`;
       });
@@ -433,21 +508,29 @@
         if (currentProfile.role === 'customer') {
           const { data } = await sb
             .from('quote_requests')
-            .select('*, quote_offers(*, profiles(shop_name, full_name, phone, municipality, avatar_url))')
+            .select('*, quote_offers(*, profiles(shop_name, full_name, phone, municipality, avatar_url, category))')
             .eq('customer_id', currentProfile.id)
             .order('created_at', { ascending: false });
           myRequests = data || [];
+          historyRequests = (myRequests || []).filter(r => r.status === 'accepted' || r.status === 'closed');
         } else {
           let query = sb
             .from('quote_requests')
-            .select('*, profiles(full_name, phone, avatar_url, wilaya, municipality), quote_offers(*)')
-            .eq('status', 'open')
+            .select('*, profiles(id, full_name, phone, avatar_url, wilaya, municipality), quote_offers(*)')
             .order('created_at', { ascending: false });
+          
           if (!showAllWilayas) {
             query = query.eq('wilaya', currentProfile.wilaya).eq('category', currentProfile.category);
           }
           const { data } = await query;
-          openRequests = data || [];
+          const allReqs = data || [];
+          openRequests = allReqs.filter(r => r.status === 'open');
+          
+          // طلبات التاجر التي أرسل لها عرضاً وتم قبولها
+          historyRequests = allReqs.filter(r => {
+            const hasMySelectedOffer = (r.quote_offers || []).some(o => o.merchant_id === currentProfile.id && o.status === 'selected');
+            return hasMySelectedOffer || r.status === 'accepted';
+          });
         }
       } catch (err) {
         console.error(err);
@@ -464,6 +547,10 @@
         if (editWilaya) editWilaya.value = currentProfile.wilaya;
         return;
       }
+      if (currentTab === 'history') {
+        main.innerHTML = renderHistoryView();
+        return;
+      }
       if (currentProfile.role === 'customer') {
         main.innerHTML = currentTab === 'home' ? renderCustomerNewRequest() : renderCustomerOrders();
         populateWilayas();
@@ -472,6 +559,38 @@
       } else {
         main.innerHTML = renderMerchantDashboard();
       }
+    }
+
+    // عرض سجل الطلبات السابقة
+    function renderHistoryView() {
+      if (historyRequests.length === 0) {
+        return `<div class="text-center py-12 bg-white rounded-2xl border border-gray-100 p-6">
+          <div class="text-4xl mb-2">📜</div>
+          <p class="font-bold text-gray-700 text-sm">سجل الطلبات السابقة فارغ حالياً</p>
+          <p class="text-xs text-gray-400 mt-1">الطلبات المقبولة أو المكتملة ستظهر هنا تلقائياً</p>
+        </div>`;
+      }
+
+      return `<div class="space-y-4">
+        <h2 class="font-extrabold text-sm text-gray-800 px-1">سجل المعاملات والطلبات السابقة</h2>
+        ${historyRequests.map(req => {
+          const cat = CATEGORIES[req.category] || CATEGORIES.supermarket;
+          return `
+            <div class="bg-white rounded-2xl p-4 shadow-sm border border-emerald-100 space-y-2">
+              <div class="flex justify-between items-start">
+                <div>
+                  <span class="text-[10px] bg-emerald-50 text-emerald-700 font-bold px-2 py-0.5 rounded-md">${cat.icon} ${cat.short}</span>
+                  <h3 class="font-extrabold text-sm text-gray-900 mt-1">${req.title}</h3>
+                  <p class="text-[11px] text-gray-400">📍 ${req.wilaya} ${req.municipality ? '- ' + req.municipality : ''}</p>
+                </div>
+                <span class="text-[10px] bg-emerald-600 text-white font-bold px-2.5 py-1 rounded-full">مكتمل / معتمد</span>
+              </div>
+              <div class="text-xs text-gray-500 pt-2 border-t border-gray-100 flex justify-between">
+                <span>تاريخ الطلب: ${new Date(req.created_at).toLocaleDateString('ar-DZ')}</span>
+              </div>
+            </div>`;
+        }).join('')}
+      </div>`;
     }
 
     function renderCustomerNewRequest() {
@@ -494,7 +613,7 @@
             <h2 class="font-extrabold text-sm text-gray-800">2. تفاصيل الطلب وقائمة المواد</h2>
             <div>
               <label class="block text-xs font-bold text-gray-600 mb-1">عنوان مختصر للطلب</label>
-              <input id="req-title" type="text" placeholder="مثال: قضيان الشهر / قائمة مواد طلاء" class="w-full px-3.5 py-2.5 rounded-xl border border-gray-200 text-sm outline-none focus:border-emerald-500">
+              <input id="req-title" type="text" placeholder="مثال: قائمة مقاضي الأسبوع / مواد بناء" class="w-full px-3.5 py-2.5 rounded-xl border border-gray-200 text-sm outline-none focus:border-emerald-500">
             </div>
 
             <div class="grid grid-cols-2 gap-2">
@@ -659,8 +778,8 @@
                     const waPhone = formatDzWhatsApp(of.profiles?.phone || '');
                     const waText = encodeURIComponent(`السلام عليكم، بخصوص عرضكم في تطبيق تسعيرتي DZ لطلب "${req.title}" بسعر ${Number(of.total_price).toLocaleString()} دج.`);
                     const merchantAvatar = of.profiles?.avatar_url 
-                      ? `<img src="${of.profiles.avatar_url}" class="w-10 h-10 rounded-full object-cover border">`
-                      : `<div class="w-10 h-10 bg-emerald-100 text-emerald-700 rounded-full flex items-center justify-center font-extrabold text-sm">🏪</div>`;
+                      ? `<img src="${of.profiles.avatar_url}" class="w-10 h-10 rounded-full object-cover border cursor-pointer" onclick="viewUserProfile('${of.merchant_id}')">`
+                      : `<div class="w-10 h-10 bg-emerald-100 text-emerald-700 rounded-full flex items-center justify-center font-extrabold text-sm cursor-pointer" onclick="viewUserProfile('${of.merchant_id}')">🏪</div>`;
                     return `
                       <div class="p-3 rounded-xl border ${idx === 0 ? 'border-emerald-500 bg-emerald-50/40' : 'border-gray-200 bg-gray-50/50'}">
                         <div class="flex items-center justify-between">
@@ -668,7 +787,7 @@
                             ${merchantAvatar}
                             <div>
                               ${idx === 0 ? `<span class="text-[10px] bg-emerald-600 text-white font-bold px-2 py-0.5 rounded-full">★ أفضل سعر</span>` : ''}
-                              <div class="font-extrabold text-sm text-gray-900 mt-0.5">${of.profiles?.shop_name || 'محل تجاري'}</div>
+                              <div class="font-extrabold text-sm text-gray-900 mt-0.5 cursor-pointer hover:text-emerald-600" onclick="viewUserProfile('${of.merchant_id}')">${of.profiles?.shop_name || 'محل تجاري'} 👤</div>
                               <div class="text-[11px] text-gray-500">${of.profiles?.municipality || ''} • ${of.delivery_available ? '🚚 التوصيل متوفر' : '🏪 استلام من المحل'}</div>
                             </div>
                           </div>
@@ -709,7 +828,7 @@
     async function selectOffer(reqId, offerId) {
       await sb.from('quote_offers').update({ status: 'selected' }).eq('id', offerId);
       await sb.from('quote_requests').update({ status: 'accepted' }).eq('id', reqId);
-      showToast('تم اعتماد العرض!');
+      showToast('تم اعتماد العرض بنجاح!');
       await loadAllData();
     }
 
@@ -732,8 +851,8 @@
             const myOffer = (req.quote_offers || []).find(o => o.merchant_id === currentProfile.id);
             const hasItems = req.items && req.items.length > 0;
             const customerAvatar = req.profiles?.avatar_url
-              ? `<img src="${req.profiles.avatar_url}" class="w-8 h-8 rounded-full object-cover border">`
-              : `<div class="w-8 h-8 bg-emerald-100 text-emerald-700 rounded-full flex items-center justify-center text-xs font-extrabold">👤</div>`;
+              ? `<img src="${req.profiles.avatar_url}" class="w-8 h-8 rounded-full object-cover border cursor-pointer" onclick="viewUserProfile('${req.customer_id}')">`
+              : `<div class="w-8 h-8 bg-emerald-100 text-emerald-700 rounded-full flex items-center justify-center text-xs font-extrabold cursor-pointer" onclick="viewUserProfile('${req.customer_id}')">👤</div>`;
             
             const mapQuery = encodeURIComponent(`${req.wilaya} ${req.municipality || ''} الجزائر`);
             const mapsUrl = `https://www.google.com/maps/search/?api=1&query=${mapQuery}`;
@@ -750,10 +869,10 @@
                     </div>
                   </div>
                   <a href="${mapsUrl}" target="_blank" class="bg-blue-50 text-blue-600 border border-blue-200 px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1">
-                    📍 خريطة الموقع
+                    📍 الخريطة
                   </a>
                 </div>
-                <p class="text-[11px] text-gray-500">الزبون: ${req.profiles?.full_name || 'زبون'} (${req.municipality || 'وسط المدينة'})</p>
+                <p class="text-[11px] text-gray-500 cursor-pointer hover:text-emerald-600" onclick="viewUserProfile('${req.customer_id}')">الزبون: <b>${req.profiles?.full_name || 'زبون'}</b> (${req.municipality || 'وسط المدينة'}) 👤</p>
 
                 ${req.image_url ? `<img src="${req.image_url}" class="w-full max-h-48 object-contain bg-gray-50 rounded-xl border">` : ''}
                 ${req.notes ? `<p class="text-xs text-amber-800 bg-amber-50 p-2 rounded-lg">📝 ملاحظة: ${req.notes}</p>` : ''}
@@ -896,6 +1015,10 @@
 
             <button onclick="saveProfileChanges()" class="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3 rounded-xl text-sm shadow-sm transition">
               حفظ التعديلات
+            </button>
+
+            <button onclick="requestUserGPSLocation()" class="w-full bg-blue-50 text-blue-600 font-bold py-2.5 rounded-xl text-xs border border-blue-200">
+              📍 تحديث موقعي الجغرافي الحالي (GPS)
             </button>
           </div>
 
