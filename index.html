@@ -530,10 +530,21 @@
             req.quote_offers = offersData || [];
           }
         } else {
+          // [إصلاح جلب الطلبات للتاجر مع دعم المرونة في الولاية والتخصص]
           let query = sb.from('quote_requests').select('*, profiles(id, full_name, phone, avatar_url, wilaya, municipality, latitude, longitude)').order('created_at', { ascending: false });
-          if (!showAllWilayas) query = query.eq('wilaya', currentProfile.wilaya).eq('category', currentProfile.category);
-          const { data } = await query;
-          openRequests = (data || []).filter(r => r.status === 'open');
+          
+          if (!showAllWilayas) {
+            query = query.eq('wilaya', currentProfile.wilaya);
+          }
+          const { data, error } = await query;
+          if (error) console.error(error);
+          
+          // فلترة الطلبات حسب تخصص التاجر إذا لم يتم طلب عرض الكل
+          let reqs = data || [];
+          if (!showAllWilayas && currentProfile.category) {
+            reqs = reqs.filter(r => r.category === currentProfile.category || !r.category);
+          }
+          openRequests = reqs.filter(r => r.status === 'open');
         }
       } catch (err) { console.error(err); }
       renderCurrentTab();
@@ -570,7 +581,7 @@
           ${isMerchant ? `
             <div class="${isDarkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-100'} p-4 rounded-2xl shadow-sm border space-y-3">
               <h3 class="font-extrabold text-sm">➕ إضافة عرض سريع جديد</h3>
-              <input id="deal-title" type="text" placeholder="عنوان العرض..." class="w-full px-3.5 py-2.5 rounded-xl border text-xs outline-none ${isDarkMode ? 'bg-gray-700 border-gray-600 text-white' : ''}">
+              <input id="deal-title" type="text" placeholder="عنوان العرض (مثال: تخفيض على الزيت)..." class="w-full px-3.5 py-2.5 rounded-xl border text-xs outline-none ${isDarkMode ? 'bg-gray-700 border-gray-600 text-white' : ''}">
               <input id="deal-price" type="number" placeholder="السعر (دج)" class="w-full px-3.5 py-2.5 rounded-xl border text-xs outline-none ${isDarkMode ? 'bg-gray-700 border-gray-600 text-white' : ''}">
               <button onclick="publishFlashDeal()" class="w-full bg-orange-600 text-white font-bold py-2.5 rounded-xl text-xs">نشر العرض</button>
             </div>
@@ -581,11 +592,24 @@
         </div>`;
     }
 
+    // [إصلاح نشر العروض السريعة بإضافة تاريخ الانتهاء تلقائياً]
     async function publishFlashDeal() {
       const title = document.getElementById('deal-title').value.trim();
       const price = document.getElementById('deal-price').value;
-      if (!title || !price) return showToast('أدخل العنوان والسعر', true);
-      const { error } = await sb.from('flash_deals').insert({ merchant_id: currentProfile.id, title, price: Number(price), category: currentProfile.category || 'supermarket', wilaya: currentProfile.wilaya });
+      if (!title || !price) return showToast('أدخل عنوان العرض والسعر', true);
+
+      // تحديد تاريخ انتهاء بعد 24 ساعة لتجاوز قيد expires_at في قاعدة البيانات
+      const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
+
+      const { error } = await sb.from('flash_deals').insert({
+        merchant_id: currentProfile.id,
+        title,
+        price: Number(price),
+        category: currentProfile.category || 'supermarket',
+        wilaya: currentProfile.wilaya,
+        expires_at: expiresAt
+      });
+
       if (error) showToast('خطأ: ' + error.message, true);
       else { showToast('تم نشر العرض بنجاح!'); loadAllData(); }
     }
@@ -763,13 +787,14 @@
 
         ${openRequests.length === 0 ? `
           <div class="text-center py-12 ${isDarkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-100'} rounded-2xl border p-6">
-            <p class="font-bold text-sm">لا توجد طلبات مفتوحة حالياً</p>
+            <p class="font-bold text-sm">لا توجد طلبات مفتوحة حالياً في ولايتك</p>
           </div>` :
           openRequests.map(req => {
             const hasItems = req.items && req.items.length > 0;
             return `
               <div class="${isDarkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-100'} rounded-2xl p-4 shadow-sm border space-y-2.5">
                 <h3 class="font-extrabold text-sm">${req.title}</h3>
+                <p class="text-[11px] text-gray-400">الولاية: ${req.wilaya}</p>
                 ${hasItems ? `
                   <div class="bg-gray-50 dark:bg-gray-700 p-2.5 rounded-xl space-y-2">
                     <div class="text-[11px] font-bold text-gray-500 dark:text-gray-300">حدد سعر كل مادة ليُحسب المجموع تلقائياً:</div>
