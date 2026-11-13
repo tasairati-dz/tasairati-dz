@@ -216,6 +216,8 @@
     let currentTab = 'home';
     let selectedCategory = 'supermarket';
     let draftItems = [];
+    let draftAvatarBase64 = null;
+    let editAvatarBase64 = null;
     let myRequests = [];
     let openRequests = [];
     let flashDeals = [];
@@ -521,10 +523,15 @@
         flashDeals = dealsData || [];
 
         if (currentProfile.role === 'customer') {
-          const { data } = await sb.from('quote_requests').select('*, quote_offers(*, profiles(shop_name, full_name, phone, municipality, avatar_url, category, latitude, longitude))').eq('customer_id', currentProfile.id).order('created_at', { ascending: false });
-          myRequests = data || [];
+          const { data: reqsData } = await sb.from('quote_requests').select('*').eq('customer_id', currentProfile.id).order('created_at', { ascending: false });
+          myRequests = reqsData || [];
+
+          for (let req of myRequests) {
+            const { data: offersData } = await sb.from('quote_offers').select('*, profiles(shop_name, full_name, phone, municipality, avatar_url, category, latitude, longitude)').eq('request_id', req.id);
+            req.quote_offers = offersData || [];
+          }
         } else {
-          let query = sb.from('quote_requests').select('*, profiles(id, full_name, phone, avatar_url, wilaya, municipality, latitude, longitude), quote_offers(*)').order('created_at', { ascending: false });
+          let query = sb.from('quote_requests').select('*, profiles(id, full_name, phone, avatar_url, wilaya, municipality, latitude, longitude)').order('created_at', { ascending: false });
           if (!showAllWilayas) query = query.eq('wilaya', currentProfile.wilaya).eq('category', currentProfile.category);
           const { data } = await query;
           openRequests = (data || []).filter(r => r.status === 'open');
@@ -539,7 +546,7 @@
         main.innerHTML = renderProfileView();
         populateWilayas();
         const editWilaya = document.getElementById('edit-wilaya');
-        if (editWilaya) editWilaya.value = currentProfile.wilaya;
+        if (editWilaya && currentProfile.wilaya) editWilaya.value = currentProfile.wilaya;
         return;
       }
       if (currentTab === 'history') { main.innerHTML = renderHistoryView(); return; }
@@ -548,7 +555,7 @@
         main.innerHTML = currentTab === 'home' ? renderCustomerNewRequest() : renderCustomerOrders();
         populateWilayas();
         const reqWilaya = document.getElementById('req-wilaya');
-        if (reqWilaya) reqWilaya.value = currentProfile.wilaya;
+        if (reqWilaya && currentProfile.wilaya) reqWilaya.value = currentProfile.wilaya;
       } else {
         main.innerHTML = renderMerchantDashboard();
       }
@@ -585,7 +592,6 @@
 
     function renderHistoryView() { return `<div class="text-center py-12 ${isDarkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-100'} rounded-2xl border p-6"><p class="font-bold text-sm">سجل الطلبات فارغ</p></div>`; }
 
-    // [إضافة مادة للطلب مع الاقتراحات السريعة]
     function addDraftItem(name = '') {
       draftItems.push({ name, qty: '1 وحدة' });
       renderDraftItemsList();
@@ -677,6 +683,7 @@
         showToast('تم إرسال الطلب بنجاح!');
         draftItems = [];
         switchTab('orders');
+        loadAllData();
       }
     }
 
@@ -856,8 +863,8 @@
           </div>
 
           <div class="bg-emerald-50 dark:bg-emerald-900/30 p-3 rounded-xl text-center">
-            <div class="text-xs text-emerald-700 dark:text-emerald-300 font-bold">📊 إحصائيات ونقاط التاجر</div>
-            <div class="text-base font-extrabold text-emerald-600 mt-1">⭐ ممتاز وموثوق</div>
+            <div class="text-xs text-emerald-700 dark:text-emerald-300 font-bold">📊 إحصائيات ونقاط الحساب</div>
+            <div class="text-base font-extrabold text-emerald-600 mt-1">⭐ نشط وموثوق</div>
           </div>
 
           <div class="pt-3 border-t border-gray-100 dark:border-gray-700">
