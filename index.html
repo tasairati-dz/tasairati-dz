@@ -191,6 +191,14 @@
     let openRequests = [];
     let showAllWilayas = false;
 
+    function formatDzWhatsApp(phone) {
+      if (!phone) return '';
+      let clean = phone.replace(/\D/g, '');
+      if (clean.startsWith('0')) clean = '213' + clean.substring(1);
+      else if (!clean.startsWith('213')) clean = '213' + clean;
+      return clean;
+    }
+
     function showToast(msg, isError = false) {
       const toast = document.getElementById('toast');
       const box = document.getElementById('toast-box');
@@ -387,6 +395,7 @@
       }
     }
 
+    // ==================== واجهة الزبون: طلب جديد ====================
     function renderCustomerNewRequest() {
       const cat = CATEGORIES[selectedCategory];
       return `
@@ -461,16 +470,8 @@
         </div>`;
     }
 
-    function selectCat(cat) {
-      selectedCategory = cat;
-      renderCurrentTab();
-    }
-
-    function quickAddItem(name) {
-      draftItems.push({ name, qty: '1' });
-      renderCurrentTab();
-    }
-
+    function selectCat(cat) { selectedCategory = cat; renderCurrentTab(); }
+    function quickAddItem(name) { draftItems.push({ name, qty: '1' }); renderCurrentTab(); }
     function addDraftItem() {
       const name = document.getElementById('item-name').value.trim();
       const qty = document.getElementById('item-qty').value.trim() || '1';
@@ -478,11 +479,7 @@
       draftItems.push({ name, qty });
       renderCurrentTab();
     }
-
-    function removeDraftItem(idx) {
-      draftItems.splice(idx, 1);
-      renderCurrentTab();
-    }
+    function removeDraftItem(idx) { draftItems.splice(idx, 1); renderCurrentTab(); }
 
     function handleImageUpload(e) {
       const file = e.target.files[0];
@@ -545,6 +542,7 @@
       }
     }
 
+    // ==================== واجهة الزبون: طلباتي والعروض + زر واتساب ====================
     function renderCustomerOrders() {
       if (myRequests.length === 0) {
         return `<div class="text-center py-12 bg-white rounded-2xl border border-gray-100 p-6">
@@ -580,27 +578,44 @@
 
               <div class="mt-3 pt-3 border-t border-gray-100 space-y-2.5">
                 ${offers.length === 0 ? `<p class="text-xs text-gray-400 text-center py-2">⏳ في انتظار رد التجار في ولايتك...</p>` :
-                  offers.map((of, idx) => `
-                    <div class="p-3 rounded-xl border ${idx === 0 ? 'border-emerald-500 bg-emerald-50/40' : 'border-gray-200 bg-gray-50/50'}">
-                      <div class="flex justify-between items-center">
-                        <div>
-                          ${idx === 0 ? `<span class="text-[10px] bg-emerald-600 text-white font-bold px-2 py-0.5 rounded-full">★ أفضل سعر</span>` : ''}
-                          <div class="font-extrabold text-sm text-gray-900 mt-0.5">${of.profiles?.shop_name || 'محل تجاري'}</div>
-                          <div class="text-[11px] text-gray-500">${of.profiles?.municipality || ''} • ${of.delivery_available ? '🚚 التوصيل متوفر' : '🏪 استلام من المحل'}</div>
+                  offers.map((of, idx) => {
+                    const waPhone = formatDzWhatsApp(of.profiles?.phone || '');
+                    const waText = encodeURIComponent(`السلام عليكم، بخصوص عرضكم في تطبيق تسعيرتي DZ لطلب "${req.title}" بسعر ${Number(of.total_price).toLocaleString()} دج.`);
+                    return `
+                      <div class="p-3 rounded-xl border ${idx === 0 ? 'border-emerald-500 bg-emerald-50/40' : 'border-gray-200 bg-gray-50/50'}">
+                        <div class="flex justify-between items-center">
+                          <div>
+                            ${idx === 0 ? `<span class="text-[10px] bg-emerald-600 text-white font-bold px-2 py-0.5 rounded-full">★ أفضل سعر</span>` : ''}
+                            <div class="font-extrabold text-sm text-gray-900 mt-0.5">${of.profiles?.shop_name || 'محل تجاري'}</div>
+                            <div class="text-[11px] text-gray-500">${of.profiles?.municipality || ''} • ${of.delivery_available ? '🚚 التوصيل متوفر' : '🏪 استلام من المحل'}</div>
+                          </div>
+                          <div class="text-left">
+                            <div class="text-base font-extrabold text-emerald-700">${Number(of.total_price).toLocaleString()} دج</div>
+                          </div>
                         </div>
-                        <div class="text-left">
-                          <div class="text-base font-extrabold text-emerald-700">${Number(of.total_price).toLocaleString()} دج</div>
+
+                        ${of.priced_items && of.priced_items.length > 0 ? `
+                          <div class="mt-2 bg-white p-2 rounded-lg border border-gray-100 space-y-1">
+                            <div class="text-[10px] font-bold text-gray-400">تفاصيل الأسعار:</div>
+                            ${of.priced_items.map(pi => `
+                              <div class="flex justify-between text-[11px] text-gray-700">
+                                <span>• ${pi.name} (${pi.qty})</span>
+                                <span class="font-bold text-emerald-700">${pi.price ? Number(pi.price).toLocaleString() + ' دج' : '-'}</span>
+                              </div>
+                            `).join('')}
+                          </div>` : ''}
+
+                        ${of.notes ? `<p class="text-xs text-gray-600 mt-1.5 bg-white p-2 rounded-lg border border-gray-100">💬 ${of.notes}</p>` : ''}
+
+                        <div class="grid grid-cols-2 gap-2 mt-2.5">
+                          <a href="tel:${of.profiles?.phone || ''}" class="bg-emerald-600 text-white text-center py-2 rounded-lg text-xs font-bold">📞 اتصال</a>
+                          <a href="https://wa.me/${waPhone}?text=${waText}" target="_blank" class="bg-[#25D366] text-white text-center py-2 rounded-lg text-xs font-bold">💬 واتساب</a>
                         </div>
-                      </div>
-                      ${of.notes ? `<p class="text-xs text-gray-600 mt-1.5 bg-white p-2 rounded-lg border border-gray-100">💬 ${of.notes}</p>` : ''}
-                      <div class="grid grid-cols-2 gap-2 mt-2.5">
-                        <a href="tel:${of.profiles?.phone || ''}" class="bg-emerald-600 text-white text-center py-2 rounded-lg text-xs font-bold">📞 اتصال (${of.profiles?.phone || ''})</a>
-                        <button onclick="selectOffer('${req.id}', '${of.id}')" class="${of.status === 'selected' ? 'bg-gray-800 text-white' : 'bg-white border border-emerald-600 text-emerald-700'} py-2 rounded-lg text-xs font-bold">
-                          ${of.status === 'selected' ? '✅ تم اختيار العرض' : 'اعتماد العرض'}
+                        <button onclick="selectOffer('${req.id}', '${of.id}')" class="w-full mt-2 ${of.status === 'selected' ? 'bg-gray-800 text-white' : 'bg-white border border-emerald-600 text-emerald-700'} py-2 rounded-lg text-xs font-bold">
+                          ${of.status === 'selected' ? '✅ تم اعتماد هذا العرض' : 'اعتماد العرض'}
                         </button>
-                      </div>
-                    </div>
-                  `).join('')
+                      </div>`;
+                  }).join('')
                 }
               </div>
             </div>`;
@@ -611,10 +626,11 @@
     async function selectOffer(reqId, offerId) {
       await sb.from('quote_offers').update({ status: 'selected' }).eq('id', offerId);
       await sb.from('quote_requests').update({ status: 'accepted' }).eq('id', reqId);
-      showToast('تم اعتماد العرض! يمكنك الاتصال بالتاجر الآن');
+      showToast('تم اعتماد العرض! يمكنك الاتصال بالتاجر أو مراسلته عبر واتساب');
       await loadAllData();
     }
 
+    // ==================== واجهة التاجر: تسعير تفصيلي وحساب المجموع تلقائيًا ====================
     function renderMerchantDashboard() {
       return `<div class="space-y-4">
         <div class="bg-white p-3 rounded-2xl border border-gray-100 flex justify-between items-center">
@@ -633,6 +649,7 @@
           openRequests.map(req => {
             const cat = CATEGORIES[req.category] || CATEGORIES.supermarket;
             const myOffer = (req.quote_offers || []).find(o => o.merchant_id === currentProfile.id);
+            const hasItems = req.items && req.items.length > 0;
             return `
               <div class="bg-white rounded-2xl p-4 shadow-sm border border-gray-100 space-y-2.5">
                 <div class="flex justify-between items-start">
@@ -643,12 +660,6 @@
                   </div>
                 </div>
 
-                ${req.items && req.items.length > 0 ? `
-                  <div class="bg-gray-50 p-2.5 rounded-xl space-y-1">
-                    <div class="text-[11px] font-bold text-gray-500">القائمة المطلوبة:</div>
-                    ${req.items.map(i => `<div class="text-xs font-bold text-gray-800">• ${i.name} — <span class="text-emerald-700">الكمية: ${i.qty}</span></div>`).join('')}
-                  </div>` : ''}
-
                 ${req.image_url ? `<img src="${req.image_url}" class="w-full max-h-48 object-contain bg-gray-50 rounded-xl border">` : ''}
                 ${req.notes ? `<p class="text-xs text-amber-800 bg-amber-50 p-2 rounded-lg">📝 ملاحظة الزبون: ${req.notes}</p>` : ''}
 
@@ -656,9 +667,20 @@
                   <div class="bg-emerald-50 border border-emerald-200 p-3 rounded-xl text-xs font-bold text-emerald-800">
                     ✅ أرسلت عرضك بقيمة: ${Number(myOffer.total_price).toLocaleString()} دج
                   </div>` : `
-                  <div class="pt-2 border-t border-gray-100 space-y-2">
+                  <div class="pt-2 border-t border-gray-100 space-y-2.5">
+                    ${hasItems ? `
+                      <div class="bg-gray-50 p-2.5 rounded-xl space-y-2">
+                        <div class="text-[11px] font-bold text-gray-600">ضع سعر كل مادة ليُحسب المجموع تلقائيًا:</div>
+                        ${req.items.map((it, idx) => `
+                          <div class="flex items-center justify-between gap-2 bg-white px-2.5 py-1.5 rounded-lg border border-gray-200">
+                            <span class="text-xs font-bold text-gray-800 flex-1">${it.name} <span class="text-emerald-600">(${it.qty})</span></span>
+                            <input type="number" oninput="recalcTotal('${req.id}', ${req.items.length})" id="item-price-${req.id}-${idx}" placeholder="السعر دج" class="w-24 px-2 py-1 rounded border border-gray-200 text-xs font-bold text-left outline-none focus:border-emerald-500">
+                          </div>
+                        `).join('')}
+                      </div>` : ''}
+
                     <div class="grid grid-cols-2 gap-2">
-                      <input type="number" id="price-${req.id}" placeholder="السعر الإجمالي (دج)" class="px-3 py-2 rounded-xl border border-gray-200 text-xs font-bold outline-none focus:border-emerald-500">
+                      <input type="number" id="price-${req.id}" placeholder="السعر الإجمالي (دج)" class="px-3 py-2 rounded-xl border-2 border-emerald-200 bg-emerald-50/30 text-xs font-extrabold text-emerald-800 outline-none focus:border-emerald-500">
                       <select id="deliv-${req.id}" class="px-2.5 py-2 rounded-xl border border-gray-200 text-xs bg-white outline-none">
                         <option value="false">🏪 استلام من المحل</option>
                         <option value="true">🚚 التوصيل متوفر</option>
@@ -676,6 +698,17 @@
       </div>`;
     }
 
+    function recalcTotal(reqId, count) {
+      let sum = 0;
+      for (let i = 0; i < count; i++) {
+        const val = Number(document.getElementById(`item-price-${reqId}-${i}`)?.value || 0);
+        if (val > 0) sum += val;
+      }
+      if (sum > 0) {
+        document.getElementById(`price-${reqId}`).value = sum;
+      }
+    }
+
     function toggleWilayaScope() {
       showAllWilayas = !showAllWilayas;
       loadAllData();
@@ -688,10 +721,21 @@
 
       if (!price || Number(price) <= 0) return showToast('أدخل السعر الإجمالي بالدينار الجزائري', true);
 
+      const reqObj = openRequests.find(r => r.id === reqId);
+      let pricedItems = [];
+      if (reqObj && reqObj.items && reqObj.items.length > 0) {
+        pricedItems = reqObj.items.map((it, idx) => ({
+          name: it.name,
+          qty: it.qty,
+          price: Number(document.getElementById(`item-price-${reqId}-${idx}`)?.value || 0)
+        }));
+      }
+
       const { error } = await sb.from('quote_offers').insert({
         request_id: reqId,
         merchant_id: currentProfile.id,
         total_price: Number(price),
+        priced_items: pricedItems,
         delivery_available: delivery,
         notes: notes
       });
@@ -699,11 +743,12 @@
       if (error) {
         showToast('خطأ في إرسال العرض: ' + error.message, true);
       } else {
-        showToast('تم إرسال تسعيرتك للزبون بنجاح!');
+        showToast('تم إرسال تسعيرتك المفصّلة للزبون بنجاح!');
         await loadAllData();
       }
     }
 
+    // ==================== صفحة الحساب الشخصي ====================
     function renderProfileView() {
       return `
         <div class="bg-white rounded-2xl p-5 shadow-sm border border-gray-100 space-y-4">
