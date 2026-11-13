@@ -414,7 +414,6 @@
       reader.readAsDataURL(file);
     }
 
-    // [إصلاح جذري ومضمون لدالة التحقق برقم الهاتف واستعادة الحساب]
     async function handleAuth(e) {
       e.preventDefault();
       const phoneInput = document.getElementById('auth-phone');
@@ -422,34 +421,20 @@
       const btn = document.getElementById('auth-submit-btn');
 
       if (authMode === 'forgot') {
-        if (!phone) {
-          showToast('يرجى إدخال رقم الهاتف', true);
-          return;
-        }
-        btn.disabled = true; 
-        btn.textContent = 'جاري البحث عن الحساب...';
-        
+        if (!phone) { showToast('يرجى إدخال رقم الهاتف', true); return; }
+        btn.disabled = true; btn.textContent = 'جاري البحث عن الحساب...';
         try {
-          // استعلام آمن ومباشر للبحث عن رقم الهاتف في جدول profiles
           const { data, error } = await sb.from('profiles').select('full_name, shop_name, phone').eq('phone', phone).maybeSingle();
-          
-          if (error) {
-            throw new Error('حدث خطأ في الاتصال بقاعدة البيانات');
-          }
-          
+          if (error) throw new Error('حدث خطأ في الاتصال بقاعدة البيانات');
           if (!data) {
             alert(`❌ رقم الهاتف (${phone}) غير مسجل في التطبيق.`);
           } else {
             const ownerName = data.shop_name || data.full_name;
-            alert(`✅ تم العثور على حسابك بنجاح!\n\nصاحب الحساب: ${ownerName}\nرقم الهاتف: ${phone}\n\nيمكنك الآن تسجيل الدخول أو إنشاء حساب جديد بنفس الرقم.`);
+            alert(`✅ تم العثور على حسابك بنجاح!\n\nصاحب الحساب: ${ownerName}\nرقم الهاتف: ${phone}\n\nيرجى تسجيل الدخول بكلمة المرور الخاصة بك.`);
             switchAuthMode('login');
           }
-        } catch (err) {
-          showToast(err.message || 'خطأ في التحقق', true);
-        } finally {
-          btn.disabled = false; 
-          btn.textContent = 'تحقق من رقم الهاتف';
-        }
+        } catch (err) { showToast(err.message || 'خطأ في التحقق', true); }
+        finally { btn.disabled = false; btn.textContent = 'تحقق من رقم الهاتف'; }
         return;
       }
 
@@ -637,6 +622,7 @@
 
     function renderCustomerOrders() { return `<div class="text-center py-12 ${isDarkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-100'} rounded-2xl border p-6"><p class="font-bold">طلباتك الحالية</p></div>`; }
 
+    // لوحة التجار مع ميزة تسعير المواد الفردية والحساب التلقائي
     function renderMerchantDashboard() {
       return `<div class="space-y-4">
         <div class="${isDarkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-100'} p-3 rounded-2xl border flex justify-between items-center">
@@ -657,7 +643,7 @@
                 <h3 class="font-extrabold text-sm">${req.title}</h3>
                 ${hasItems ? `
                   <div class="bg-gray-50 dark:bg-gray-700 p-2.5 rounded-xl space-y-2">
-                    <div class="text-[11px] font-bold text-gray-500 dark:text-gray-300">حدد سعر كل مادة:</div>
+                    <div class="text-[11px] font-bold text-gray-500 dark:text-gray-300">حدد سعر كل مادة ليُحسب المجموع تلقائياً:</div>
                     ${req.items.map((it, idx) => `
                       <div class="flex items-center justify-between gap-2 bg-white dark:bg-gray-800 px-2.5 py-1.5 rounded-lg border border-gray-200 dark:border-gray-600">
                         <span class="text-xs font-bold flex-1">${it.name} (${it.qty})</span>
@@ -686,8 +672,26 @@
     async function sendMerchantOffer(reqId) {
       const price = document.getElementById(`price-${reqId}`).value;
       if (!price || Number(price) <= 0) return showToast('أدخل السعر الإجمالي', true);
-      await sb.from('quote_offers').insert({ request_id: reqId, merchant_id: currentProfile.id, total_price: Number(price) });
-      showToast('تم إرسال تسعيرتك بنجاح!'); loadAllData();
+
+      const reqObj = openRequests.find(r => r.id === reqId);
+      let pricedItems = [];
+      if (reqObj && reqObj.items && reqObj.items.length > 0) {
+        pricedItems = reqObj.items.map((it, idx) => ({
+          name: it.name,
+          qty: it.qty,
+          price: Number(document.getElementById(`item-price-${reqId}-${idx}`)?.value || 0)
+        }));
+      }
+
+      const { error } = await sb.from('quote_offers').insert({
+        request_id: reqId,
+        merchant_id: currentProfile.id,
+        total_price: Number(price),
+        priced_items: pricedItems
+      });
+
+      if (error) showToast('خطأ: ' + error.message, true);
+      else { showToast('تم إرسال تسعيرتك بنجاح!'); loadAllData(); }
     }
 
     function renderProfileView() {
