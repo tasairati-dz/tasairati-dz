@@ -221,6 +221,7 @@
     let myRequests = [];
     let openRequests = [];
     let flashDeals = [];
+    let historyRequests = [];
     let showAllWilayas = false;
     let isDarkMode = localStorage.getItem('dark_mode') === 'true';
 
@@ -415,24 +416,19 @@
 
     async function handleAuth(e) {
       e.preventDefault();
-      const phoneInput = document.getElementById('auth-phone');
-      const phone = phoneInput ? phoneInput.value.trim().replace(/\s+/g, '') : '';
+      const phone = document.getElementById('auth-phone').value.trim().replace(/\s+/g, '');
       const btn = document.getElementById('auth-submit-btn');
 
       if (authMode === 'forgot') {
-        if (!phone) { showToast('يرجى إدخال رقم الهاتف', true); return; }
-        btn.disabled = true; btn.textContent = 'جاري البحث عن الحساب...';
+        if (!phone) { showToast('أدخل رقم الهاتف المسجل', true); return; }
+        btn.disabled = true; btn.textContent = 'جاري التحقق من الرقم...';
         try {
-          const { data, error } = await sb.from('profiles').select('full_name, shop_name, phone').eq('phone', phone).maybeSingle();
-          if (error) throw new Error('حدث خطأ في الاتصال بقاعدة البيانات');
-          if (!data) {
-            alert(`❌ رقم الهاتف (${phone}) غير مسجل في التطبيق.`);
-          } else {
-            const ownerName = data.shop_name || data.full_name;
-            alert(`✅ تم العثور على حسابك بنجاح!\n\nصاحب الحساب: ${ownerName}\nرقم الهاتف: ${phone}\n\nيرجى تسجيل الدخول بكلمة المرور الخاصة بك.`);
-            switchAuthMode('login');
-          }
-        } catch (err) { showToast(err.message || 'خطأ في التحقق', true); }
+          const { data, error } = await sb.from('profiles').select('full_name, shop_name').eq('phone', phone).single();
+          if (error || !data) throw new Error('رقم الهاتف غير مسجل في النظام!');
+          const ownerName = data.shop_name || data.full_name;
+          alert(`✅ تم العثور على حسابك بنجاح!\n\nصاحب الحساب: ${ownerName}\nرقم الهاتف: ${phone}\n\nيرجى تسجيل الدخول أو إنشاء حساب جديد بنفس الرقم.`);
+          switchAuthMode('login');
+        } catch (err) { showToast(err.message, true); }
         finally { btn.disabled = false; btn.textContent = 'تحقق من رقم الهاتف'; }
         return;
       }
@@ -523,15 +519,10 @@
         flashDeals = dealsData || [];
 
         if (currentProfile.role === 'customer') {
-          const { data: reqsData } = await sb.from('quote_requests').select('*').eq('customer_id', currentProfile.id).order('created_at', { ascending: false });
-          myRequests = reqsData || [];
-
-          for (let req of myRequests) {
-            const { data: offersData } = await sb.from('quote_offers').select('*, profiles(shop_name, full_name, phone, municipality, avatar_url, category, latitude, longitude)').eq('request_id', req.id);
-            req.quote_offers = offersData || [];
-          }
+          const { data } = await sb.from('quote_requests').select('*, quote_offers(*, profiles(shop_name, full_name, phone, municipality, avatar_url, category, latitude, longitude))').eq('customer_id', currentProfile.id).order('created_at', { ascending: false });
+          myRequests = data || [];
         } else {
-          let query = sb.from('quote_requests').select('*, profiles(id, full_name, phone, avatar_url, wilaya, municipality, latitude, longitude)').order('created_at', { ascending: false });
+          let query = sb.from('quote_requests').select('*, profiles(id, full_name, phone, avatar_url, wilaya, municipality, latitude, longitude), quote_offers(*)').order('created_at', { ascending: false });
           if (!showAllWilayas) query = query.eq('wilaya', currentProfile.wilaya).eq('category', currentProfile.category);
           const { data } = await query;
           openRequests = (data || []).filter(r => r.status === 'open');
@@ -546,7 +537,7 @@
         main.innerHTML = renderProfileView();
         populateWilayas();
         const editWilaya = document.getElementById('edit-wilaya');
-        if (editWilaya && currentProfile.wilaya) editWilaya.value = currentProfile.wilaya;
+        if (editWilaya) editWilaya.value = currentProfile.wilaya;
         return;
       }
       if (currentTab === 'history') { main.innerHTML = renderHistoryView(); return; }
@@ -554,8 +545,6 @@
       if (currentProfile.role === 'customer') {
         main.innerHTML = currentTab === 'home' ? renderCustomerNewRequest() : renderCustomerOrders();
         populateWilayas();
-        const reqWilaya = document.getElementById('req-wilaya');
-        if (reqWilaya && currentProfile.wilaya) reqWilaya.value = currentProfile.wilaya;
       } else {
         main.innerHTML = renderMerchantDashboard();
       }
@@ -563,6 +552,7 @@
 
     function renderFlashDealsView() {
       const isMerchant = currentProfile.role === 'merchant';
+      const myDeals = flashDeals.filter(d => d.merchant_id === currentProfile.id);
       return `
         <div class="space-y-4">
           <div class="bg-gradient-to-r from-amber-500 to-orange-600 rounded-2xl p-4 text-white shadow-md">
@@ -592,32 +582,6 @@
 
     function renderHistoryView() { return `<div class="text-center py-12 ${isDarkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-100'} rounded-2xl border p-6"><p class="font-bold text-sm">سجل الطلبات فارغ</p></div>`; }
 
-    function addDraftItem(name = '') {
-      draftItems.push({ name, qty: '1 وحدة' });
-      renderDraftItemsList();
-    }
-
-    function removeDraftItem(index) {
-      draftItems.splice(index, 1);
-      renderDraftItemsList();
-    }
-
-    function renderDraftItemsList() {
-      const container = document.getElementById('draft-items-container');
-      if (!container) return;
-      if (draftItems.length === 0) {
-        container.innerHTML = `<p class="text-xs text-gray-400 italic text-center py-2">لم تقم بإضافة أي مواد بعد. اختر من الاقتراحات أو أضف يدوياً.</p>`;
-        return;
-      }
-      container.innerHTML = draftItems.map((it, idx) => `
-        <div class="flex items-center gap-2 bg-gray-50 dark:bg-gray-700 p-2 rounded-xl border border-gray-200 dark:border-gray-600">
-          <input type="text" value="${it.name}" oninput="draftItems[${idx}].name = this.value" placeholder="اسم المادة" class="flex-1 px-2 py-1 bg-white dark:bg-gray-800 rounded border text-xs outline-none ${isDarkMode ? 'text-white' : ''}">
-          <input type="text" value="${it.qty}" oninput="draftItems[${idx}].qty = this.value" placeholder="الكمية" class="w-20 px-2 py-1 bg-white dark:bg-gray-800 rounded border text-xs outline-none ${isDarkMode ? 'text-white' : ''}">
-          <button onclick="removeDraftItem(${idx})" class="text-red-500 font-bold px-2 text-sm">✕</button>
-        </div>
-      `).join('');
-    }
-
     function renderCustomerNewRequest() {
       const cat = CATEGORIES[selectedCategory];
       return `
@@ -633,125 +597,28 @@
               `).join('')}
             </div>
           </div>
-
           <div class="${isDarkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-100'} p-4 rounded-2xl shadow-sm border space-y-3">
-            <h2 class="font-extrabold text-sm">2. المواد والأغراض المطلوبة</h2>
-            <div class="flex flex-wrap gap-1.5">
-              ${cat.suggestions.map(s => `
-                <button type="button" onclick="addDraftItem('${s}')" class="text-xs bg-emerald-50 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300 px-2.5 py-1.5 rounded-lg font-bold border border-emerald-200 dark:border-emerald-800 hover:bg-emerald-100">
-                  + ${s}
-                </button>
-              `).join('')}
-            </div>
-            <div id="draft-items-container" class="space-y-2 mt-2"></div>
-            <button type="button" onclick="addDraftItem()" class="text-xs text-emerald-600 font-bold">+ إضافة مادة أخرى يدوياً</button>
-          </div>
-
-          <div class="${isDarkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-100'} p-4 rounded-2xl shadow-sm border space-y-3">
-            <h2 class="font-extrabold text-sm">3. معلومات الطلب</h2>
-            <input id="req-title" type="text" placeholder="عنوان عام للطلب (مثال: مقاضي الأسبوع)..." class="w-full px-3.5 py-2.5 rounded-xl border text-xs outline-none ${isDarkMode ? 'bg-gray-700 border-gray-600 text-white' : ''}">
+            <h2 class="font-extrabold text-sm">2. تفاصيل الطلب</h2>
+            <input id="req-title" type="text" placeholder="عنوان الطلب..." class="w-full px-3.5 py-2.5 rounded-xl border text-xs outline-none ${isDarkMode ? 'bg-gray-700 border-gray-600 text-white' : ''}">
             <select id="req-wilaya" class="wilaya-select w-full px-3 py-2.5 rounded-xl border text-xs bg-white text-black outline-none"></select>
             <button onclick="submitQuoteRequest()" class="w-full bg-emerald-600 text-white font-extrabold py-3 rounded-xl text-sm">🚀 إرسال للتجار</button>
           </div>
         </div>`;
     }
 
-    function selectCat(cat) { 
-      selectedCategory = cat; 
-      draftItems = [];
-      renderCurrentTab(); 
-      renderDraftItemsList();
-    }
+    function selectCat(cat) { selectedCategory = cat; renderCurrentTab(); }
 
     async function submitQuoteRequest() {
       const title = document.getElementById('req-title').value.trim();
       const wilaya = document.getElementById('req-wilaya').value;
-      if (!title) return showToast('أدخل عنوان الطلب العام', true);
-      if (draftItems.length === 0) return showToast('أضف مادة واحدة على الأقل للطلب', true);
-
-      const { error } = await sb.from('quote_requests').insert({
-        customer_id: currentProfile.id,
-        category: selectedCategory,
-        wilaya,
-        title,
-        items: draftItems,
-        status: 'open'
-      });
-
-      if (error) showToast('خطأ: ' + error.message, true);
-      else {
-        showToast('تم إرسال الطلب بنجاح!');
-        draftItems = [];
-        switchTab('orders');
-        loadAllData();
-      }
+      if (!title) return showToast('أدخل عنوان الطلب', true);
+      await sb.from('quote_requests').insert({ customer_id: currentProfile.id, category: selectedCategory, wilaya, title, status: 'open' });
+      showToast('تم إرسال الطلب بنجاح!'); switchTab('orders');
     }
 
-    function renderCustomerOrders() {
-      if (!myRequests || myRequests.length === 0) {
-        return `
-          <div class="text-center py-12 ${isDarkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-100'} rounded-2xl border p-6 space-y-3">
-            <div class="text-3xl">📋</div>
-            <p class="font-bold text-sm">ليس لديك أي طلبات حالياً</p>
-            <button onclick="switchTab('home')" class="bg-emerald-600 text-white text-xs font-bold px-4 py-2 rounded-xl">أنشئ طلباً جديداً الآن</button>
-          </div>`;
-      }
+    function renderCustomerOrders() { return `<div class="text-center py-12 ${isDarkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-100'} rounded-2xl border p-6"><p class="font-bold">طلباتك الحالية</p></div>`; }
 
-      return `
-        <div class="space-y-4">
-          <h2 class="font-extrabold text-sm text-gray-700 dark:text-gray-300">طلباتي السابقة والعروض الواردة</h2>
-          ${myRequests.map(req => {
-            const offers = req.quote_offers || [];
-            const reqItems = req.items || [];
-            return `
-              <div class="${isDarkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-100'} rounded-2xl p-4 shadow-sm border space-y-3">
-                <div class="flex justify-between items-start">
-                  <div>
-                    <h3 class="font-extrabold text-sm">${req.title}</h3>
-                    <p class="text-[11px] text-gray-400 mt-0.5">الولاية: ${req.wilaya} • الحالة: <span class="text-emerald-600 font-bold">${req.status === 'open' ? 'قيد الانتظار ⏳' : 'مكتمل'}</span></p>
-                  </div>
-                  <span class="text-xs bg-emerald-50 text-emerald-700 px-2.5 py-1 rounded-full font-bold">${offers.length} عروض</span>
-                </div>
-
-                ${reqItems.length > 0 ? `
-                  <div class="bg-gray-50 dark:bg-gray-700 p-2.5 rounded-xl text-xs space-y-1">
-                    <div class="font-bold text-gray-500 dark:text-gray-300">المواد المطلوبة:</div>
-                    ${reqItems.map(it => `<div>• ${it.name} (${it.qty})</div>`).join('')}
-                  </div>
-                ` : ''}
-
-                <div class="space-y-2 pt-2 border-t border-gray-100 dark:border-gray-700">
-                  <div class="text-xs font-bold text-gray-500">عروض التجار:</div>
-                  ${offers.length === 0 ? `<p class="text-xs text-gray-400 italic">في انتظار رد تجار الولاية...</p>` :
-                    offers.map(of => {
-                      let distText = '';
-                      if (currentProfile.latitude && currentProfile.longitude && of.profiles?.latitude && of.profiles?.longitude) {
-                        const d = calculateDistance(currentProfile.latitude, currentProfile.longitude, of.profiles.latitude, of.profiles.longitude);
-                        if (d) distText = `<span class="text-[11px] text-emerald-500 font-bold">📍 يبعد عنك ${d} كم</span>`;
-                      }
-                      const waPhone = formatDzWhatsApp(of.profiles?.phone || '');
-                      return `
-                        <div class="p-3 bg-gray-50 dark:bg-gray-700 rounded-xl border border-gray-200 dark:border-gray-600 space-y-2">
-                          <div class="flex justify-between items-center">
-                            <div>
-                              <span class="font-extrabold text-xs cursor-pointer text-emerald-600 hover:underline" onclick="viewUserProfile('${of.merchant_id}')">${of.profiles?.shop_name || 'محل تجاري'} ⭐</span>
-                              <div>${distText}</div>
-                            </div>
-                            <span class="text-base font-extrabold text-emerald-700">${Number(of.total_price).toLocaleString()} دج</span>
-                          </div>
-                          
-                          <div class="grid grid-cols-2 gap-2 pt-1">
-                            <a href="tel:${of.profiles?.phone || ''}" class="bg-emerald-600 text-white py-1.5 rounded-lg text-xs font-bold text-center">📞 اتصال</a>
-                            <a href="https://wa.me/${waPhone}" target="_blank" class="bg-[#25D366] text-white py-1.5 rounded-lg text-xs font-bold text-center">💬 واتساب</a>
-                          </div>
-                        </div>`;
-                    }).join('')}
-                </div>
-              </div>`;
-          }).join('')}
-        </div>`;
-    }
-
+    // لوحة التجار مع تسعير المواد الفردية
     function renderMerchantDashboard() {
       return `<div class="space-y-4">
         <div class="${isDarkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-100'} p-3 rounded-2xl border flex justify-between items-center">
@@ -772,7 +639,7 @@
                 <h3 class="font-extrabold text-sm">${req.title}</h3>
                 ${hasItems ? `
                   <div class="bg-gray-50 dark:bg-gray-700 p-2.5 rounded-xl space-y-2">
-                    <div class="text-[11px] font-bold text-gray-500 dark:text-gray-300">حدد سعر كل مادة ليُحسب المجموع تلقائياً:</div>
+                    <div class="text-[11px] font-bold text-gray-500 dark:text-gray-300">حدد سعر كل مادة:</div>
                     ${req.items.map((it, idx) => `
                       <div class="flex items-center justify-between gap-2 bg-white dark:bg-gray-800 px-2.5 py-1.5 rounded-lg border border-gray-200 dark:border-gray-600">
                         <span class="text-xs font-bold flex-1">${it.name} (${it.qty})</span>
@@ -801,17 +668,11 @@
     async function sendMerchantOffer(reqId) {
       const price = document.getElementById(`price-${reqId}`).value;
       if (!price || Number(price) <= 0) return showToast('أدخل السعر الإجمالي', true);
-
-      const { error } = await sb.from('quote_offers').insert({
-        request_id: reqId,
-        merchant_id: currentProfile.id,
-        total_price: Number(price)
-      });
-
-      if (error) showToast('خطأ: ' + error.message, true);
-      else { showToast('تم إرسال تسعيرتك بنجاح!'); loadAllData(); }
+      await sb.from('quote_offers').insert({ request_id: reqId, merchant_id: currentProfile.id, total_price: Number(price) });
+      showToast('تم إرسال تسعيرتك بنجاح!'); loadAllData();
     }
 
+    // واجهة تعديل الملف الشخصي
     function renderProfileView() {
       const isMerchant = currentProfile.role === 'merchant';
       const avatarDisplay = editAvatarBase64 || currentProfile.avatar_url;
@@ -863,8 +724,8 @@
           </div>
 
           <div class="bg-emerald-50 dark:bg-emerald-900/30 p-3 rounded-xl text-center">
-            <div class="text-xs text-emerald-700 dark:text-emerald-300 font-bold">📊 إحصائيات ونقاط الحساب</div>
-            <div class="text-base font-extrabold text-emerald-600 mt-1">⭐ نشط وموثوق</div>
+            <div class="text-xs text-emerald-700 dark:text-emerald-300 font-bold">📊 إحصائيات ونقاط التاجر</div>
+            <div class="text-base font-extrabold text-emerald-600 mt-1">⭐ ممتاز وموثوق</div>
           </div>
 
           <div class="pt-3 border-t border-gray-100 dark:border-gray-700">
