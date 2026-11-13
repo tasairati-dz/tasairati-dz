@@ -10,7 +10,8 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800&display=swap" rel="stylesheet">
   <script src="https://cdn.tailwindcss.com"></script>
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <!-- تحديث مكتبة Supabase لتعمل مباشرة وثابتة -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.39.7/dist/umd/supabase.js"></script>
   <style>
     * { font-family: 'Cairo', sans-serif; -webkit-tap-highlight-color: transparent; }
     body { background-color: #f3f4f6; padding-bottom: 85px; }
@@ -317,4 +318,791 @@
         ${avatarH}
         <h3 class="font-extrabold text-base text-gray-900">${userData.shop_name || userData.full_name}</h3>
         <div class="flex items-center justify-center gap-1 my-1">
-          <span class="text
+          <span class="text-amber-500 font-extrabold">★ ${reviews.length > 0 ? avgRating : '5.0'}</span>
+          <span class="text-xs text-gray-400">(${reviews.length} تقييمات)</span>
+        </div>
+        
+        <div class="mt-3 text-right space-y-1.5 bg-gray-50 p-3 rounded-xl text-xs">
+          <div class="flex justify-between"><span class="text-gray-400">الاسم:</span><span class="font-bold">${userData.full_name}</span></div>
+          ${isMer ? `<div class="flex justify-between"><span class="text-gray-400">التخصص:</span><span class="font-bold">${userData.category || '-'}</span></div>` : ''}
+          <div class="flex justify-between"><span class="text-gray-400">المنطقة:</span><span class="font-bold">${userData.wilaya} ${userData.municipality ? '- ' + userData.municipality : ''}</span></div>
+        </div>
+
+        <div class="grid grid-cols-2 gap-2 mt-3">
+          <a href="tel:${userData.phone || ''}" class="bg-emerald-600 text-white py-2 rounded-xl text-xs font-bold text-center">📞 اتصال</a>
+          <a href="https://wa.me/${waPhone}" target="_blank" class="bg-[#25D366] text-white py-2 rounded-xl text-xs font-bold text-center">💬 واتساب</a>
+        </div>
+
+        ${isMer ? `
+          <div class="mt-4 pt-3 border-t border-gray-100 text-right">
+            <h4 class="font-bold text-xs text-gray-700 mb-2">آراء الزبائن:</h4>
+            <div class="space-y-2 max-h-36 overflow-y-auto hide-scroll">
+              ${reviews.length === 0 ? `<p class="text-[11px] text-gray-400 text-center py-2">لا توجد تقييمات حتى الآن</p>` :
+                reviews.map(rev => `
+                  <div class="bg-gray-50 p-2 rounded-lg border border-gray-100 text-[11px]">
+                    <div class="flex justify-between font-bold text-gray-800">
+                      <span>${rev.profiles?.full_name || 'زبون'}</span>
+                      <span class="text-amber-500">${'★'.repeat(rev.rating)}</span>
+                    </div>
+                    <p class="text-gray-600 mt-1">${rev.comment || 'بدون تعليق'}</p>
+                  </div>
+                `).join('')
+              }
+            </div>
+
+            ${currentProfile.role === 'customer' ? `
+              <div class="mt-3 bg-emerald-50/50 p-2.5 rounded-xl border border-emerald-100 space-y-2">
+                <div class="text-[11px] font-bold text-emerald-800">أضف تقييمك لهذا التاجر:</div>
+                <div class="flex gap-1 justify-center">
+                  <select id="new-rating" class="px-2 py-1 rounded border text-xs bg-white">
+                    <option value="5">⭐⭐⭐⭐⭐ (ممتاز)</option>
+                    <option value="4">⭐⭐⭐⭐ (جيد جداً)</option>
+                    <option value="3">⭐⭐⭐ (متوسط)</option>
+                    <option value="2">⭐⭐ (ضعيف)</option>
+                    <option value="1">⭐ (سيء)</option>
+                  </select>
+                </div>
+                <input id="new-comment" type="text" placeholder="اكتب تعليقك هنا..." class="w-full px-2 py-1.5 rounded border border-gray-200 text-xs bg-white outline-none">
+                <button onclick="submitReview('${userId}')" class="w-full bg-emerald-600 text-white py-1.5 rounded text-xs font-bold">إرسال التقييم</button>
+              </div>
+            ` : ''}
+          </div>
+        ` : ''}
+      `;
+      document.getElementById('profile-modal').classList.remove('hidden');
+    }
+
+    async function submitReview(merchantId) {
+      const rating = Number(document.getElementById('new-rating').value);
+      const comment = document.getElementById('new-comment').value.trim();
+
+      const { error } = await sb.from('merchant_reviews').insert({
+        merchant_id: merchantId,
+        customer_id: currentProfile.id,
+        rating,
+        comment
+      });
+
+      if (error) {
+        showToast('خطأ في إرسال التقييم: ' + error.message, true);
+      } else {
+        showToast('تم إضافة تقييمك بنجاح!');
+        closeProfileModal();
+      }
+    }
+
+    function closeProfileModal() {
+      document.getElementById('profile-modal').classList.add('hidden');
+    }
+
+    async function initApp() {
+      try {
+        populateWilayas();
+        // التحقق من تحميل مكتبة Supabase
+        if (typeof window.supabase === 'undefined') {
+          throw new Error('تعذر تحميل مكتبة الاتصال، تحقق من الإنترنت');
+        }
+        sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+        
+        const { data: { session } } = await sb.auth.getSession();
+        if (session) {
+          currentUser = session.user;
+          await loadUserProfile();
+        } else {
+          showAuthView();
+        }
+      } catch (err) {
+        showAuthView();
+      }
+    }
+
+    function showAuthView() {
+      document.getElementById('loading-screen').classList.add('hidden');
+      document.getElementById('app-view').classList.add('hidden');
+      document.getElementById('auth-view').classList.remove('hidden');
+    }
+
+    function switchAuthMode(mode) {
+      authMode = mode;
+      const isSignup = mode === 'signup';
+      document.getElementById('signup-fields').classList.toggle('hidden', !isSignup);
+      document.getElementById('tab-login').className = `py-2 rounded-lg text-sm font-bold ${!isSignup ? 'bg-white text-emerald-700 shadow-sm' : 'text-gray-500'}`;
+      document.getElementById('tab-signup').className = `py-2 rounded-lg text-sm font-bold ${isSignup ? 'bg-white text-emerald-700 shadow-sm' : 'text-gray-500'}`;
+      document.getElementById('auth-submit-btn').textContent = isSignup ? 'إنشاء الحساب والدخول' : 'دخول إلى التطبيق';
+    }
+
+    function toggleMerchantFields() {
+      const role = document.querySelector('input[name="role"]:checked').value;
+      document.getElementById('merchant-only').classList.toggle('hidden', role !== 'merchant');
+    }
+
+    function handleAvatarUpload(e) {
+      const file = e.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = function(ev) {
+        const img = new Image();
+        img.onload = function() {
+          const canvas = document.createElement('canvas');
+          const maxW = 300;
+          const scale = Math.min(1, maxW / img.width);
+          canvas.width = img.width * scale;
+          canvas.height = img.height * scale;
+          canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
+          draftAvatarBase64 = canvas.toDataURL('image/jpeg', 0.6);
+          document.getElementById('avatar-preview-container').innerHTML = `<img src="${draftAvatarBase64}" class="w-full h-full object-cover">`;
+        };
+        img.src = ev.target.result;
+      };
+      reader.readAsDataURL(file);
+    }
+
+    function handleEditAvatarUpload(e) {
+      const file = e.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = function(ev) {
+        const img = new Image();
+        img.onload = function() {
+          const canvas = document.createElement('canvas');
+          const maxW = 300;
+          const scale = Math.min(1, maxW / img.width);
+          canvas.width = img.width * scale;
+          canvas.height = img.height * scale;
+          canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
+          editAvatarBase64 = canvas.toDataURL('image/jpeg', 0.6);
+          const previewEl = document.getElementById('edit-avatar-preview');
+          if (previewEl) previewEl.innerHTML = `<img src="${editAvatarBase64}" class="w-full h-full object-cover">`;
+        };
+        img.src = ev.target.result;
+      };
+      reader.readAsDataURL(file);
+    }
+
+    async function handleAuth(e) {
+      e.preventDefault();
+      const phone = document.getElementById('auth-phone').value.trim().replace(/\s+/g, '');
+      const password = document.getElementById('auth-password').value;
+      const fakeEmail = `${phone}@tasairati.dz`;
+      const btn = document.getElementById('auth-submit-btn');
+      btn.disabled = true;
+      btn.textContent = 'جاري المعالجة...';
+
+      try {
+        if (authMode === 'login') {
+          const { data, error } = await sb.auth.signInWithPassword({ email: fakeEmail, password });
+          if (error) throw new Error('رقم الهاتف أو كلمة المرور غير صحيحة');
+          currentUser = data.user;
+          await loadUserProfile();
+        } else {
+          const fullName = document.getElementById('reg-name').value.trim();
+          const role = document.querySelector('input[name="role"]:checked').value;
+          const wilaya = document.getElementById('reg-wilaya').value;
+          const municipality = document.getElementById('reg-municipality').value.trim();
+          const shopName = document.getElementById('reg-shop').value.trim();
+          const category = document.getElementById('reg-category').value;
+
+          if (!fullName) throw new Error('يرجى كتابة الاسم الكامل');
+          if (role === 'merchant' && !shopName) throw new Error('يرجى كتابة اسم المحل التجاري');
+
+          const { data, error } = await sb.auth.signUp({ email: fakeEmail, password });
+          if (error) throw new Error(error.message);
+          if (!data.user) throw new Error('تأكد من إيقاف Confirm email في إعدادات Supabase');
+
+          const { error: profErr } = await sb.from('profiles').insert({
+            id: data.user.id,
+            full_name: fullName,
+            phone: phone,
+            role: role,
+            wilaya: wilaya,
+            municipality: municipality,
+            shop_name: role === 'merchant' ? shopName : null,
+            category: role === 'merchant' ? category : null,
+            avatar_url: draftAvatarBase64
+          });
+          if (profErr) throw new Error('خطأ في حفظ الملف: ' + profErr.message);
+
+          currentUser = data.user;
+          showToast('تم إنشاء حسابك بنجاح!');
+          requestUserGPSLocation();
+          await loadUserProfile();
+        }
+      } catch (err) {
+        showToast(err.message, true);
+      } finally {
+        btn.disabled = false;
+        btn.textContent = authMode === 'signup' ? 'إنشاء الحساب والدخول' : 'دخول إلى التطبيق';
+      }
+    }
+
+    async function loadUserProfile() {
+      const { data, error } = await sb.from('profiles').select('*').eq('id', currentUser.id).single();
+      if (error || !data) {
+        showAuthView();
+        return;
+      }
+      currentProfile = data;
+      document.getElementById('loading-screen').classList.add('hidden');
+      document.getElementById('auth-view').classList.add('hidden');
+      document.getElementById('app-view').classList.remove('hidden');
+
+      const isMerchant = currentProfile.role === 'merchant';
+      document.getElementById('role-badge').textContent = isMerchant ? 'حساب تاجر' : 'حساب زبون';
+      document.getElementById('header-subtitle').textContent = isMerchant
+        ? `${currentProfile.shop_name} • ${currentProfile.wilaya}`
+        : `مرحبًا ${currentProfile.full_name} • ${currentProfile.wilaya}`;
+
+      const avatarContainer = document.getElementById('header-avatar');
+      if (currentProfile.avatar_url) {
+        avatarContainer.innerHTML = `<img src="${currentProfile.avatar_url}" class="w-full h-full object-cover">`;
+      } else {
+        avatarContainer.textContent = isMerchant ? '🏪' : '👤';
+      }
+
+      setupNav();
+      currentTab = 'home';
+      await loadAllData();
+      setupRealtimeListeners();
+    }
+
+    function setupRealtimeListeners() {
+      sb.channel('public-db-changes')
+        .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'flash_deals' }, payload => {
+          const newDeal = payload.new;
+          if (newDeal.wilaya === currentProfile.wilaya) {
+            triggerBackgroundNotification("🔥 عروض سريعة جديدة!", `أضف عرضاً جديداً في ${newDeal.wilaya}: ${newDeal.title} بسعر ${newDeal.price} دج`);
+            loadAllData();
+          }
+        })
+        .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'quote_requests' }, payload => {
+          const newReq = payload.new;
+          if (currentProfile.role === 'merchant' && newReq.wilaya === currentProfile.wilaya && newReq.category === currentProfile.category) {
+            triggerBackgroundNotification("📦 طلب تسعيرة جديد!", `طلب جديد في ${newReq.wilaya}: ${newReq.title}`);
+            loadAllData();
+          }
+        })
+        .subscribe();
+    }
+
+    function setupNav() {
+      const isMerchant = currentProfile.role === 'merchant';
+      const nav = document.getElementById('bottom-nav');
+      if (isMerchant) {
+        nav.innerHTML = `
+          <button onclick="switchTab('home')" id="nav-home" class="flex flex-col items-center text-emerald-600 font-bold text-xs">
+            <span class="text-xl mb-0.5">📥</span><span>الطلبات</span>
+          </button>
+          <button onclick="switchTab('deals')" id="nav-deals" class="flex flex-col items-center text-gray-400 font-bold text-xs">
+            <span class="text-xl mb-0.5">⚡</span><span>عروضي</span>
+          </button>
+          <button onclick="switchTab('history')" id="nav-history" class="flex flex-col items-center text-gray-400 font-bold text-xs">
+            <span class="text-xl mb-0.5">📜</span><span>السجل</span>
+          </button>
+          <button onclick="switchTab('profile')" id="nav-profile" class="flex flex-col items-center text-gray-400 font-bold text-xs">
+            <span class="text-xl mb-0.5">🏪</span><span>حسابي</span>
+          </button>`;
+      } else {
+        nav.innerHTML = `
+          <button onclick="switchTab('home')" id="nav-home" class="flex flex-col items-center text-emerald-600 font-bold text-xs">
+            <span class="text-xl mb-0.5">➕</span><span>طلب جديد</span>
+          </button>
+          <button onclick="switchTab('deals')" id="nav-deals" class="flex flex-col items-center text-gray-400 font-bold text-xs">
+            <span class="text-xl mb-0.5">⚡</span><span>العروض السريعة</span>
+          </button>
+          <button onclick="switchTab('orders')" id="nav-orders" class="flex flex-col items-center text-gray-400 font-bold text-xs">
+            <span class="text-xl mb-0.5">📋</span><span>طلباتي</span>
+          </button>
+          <button onclick="switchTab('profile')" id="nav-profile" class="flex flex-col items-center text-gray-400 font-bold text-xs">
+            <span class="text-xl mb-0.5">👤</span><span>حسابي</span>
+          </button>`;
+      }
+    }
+
+    function switchTab(tab) {
+      currentTab = tab;
+      const tabsList = currentProfile.role === 'merchant' ? ['home', 'deals', 'history', 'profile'] : ['home', 'deals', 'orders', 'history', 'profile'];
+      tabsList.forEach(t => {
+        const el = document.getElementById(`nav-${t}`);
+        if (el) el.className = `flex flex-col items-center font-bold text-xs ${t === tab ? 'text-emerald-600' : 'text-gray-400'}`;
+      });
+      renderCurrentTab();
+    }
+
+    async function loadAllData() {
+      try {
+        const { data: dealsData } = await sb.from('flash_deals').select('*, profiles(shop_name, phone, avatar_url, wilaya, municipality)').eq('wilaya', currentProfile.wilaya).order('created_at', { ascending: false });
+        flashDeals = dealsData || [];
+
+        if (currentProfile.role === 'customer') {
+          const { data } = await sb
+            .from('quote_requests')
+            .select('*, quote_offers(*, profiles(shop_name, full_name, phone, municipality, avatar_url, category))')
+            .eq('customer_id', currentProfile.id)
+            .order('created_at', { ascending: false });
+          myRequests = data || [];
+          historyRequests = (myRequests || []).filter(r => r.status === 'accepted' || r.status === 'closed');
+        } else {
+          let query = sb
+            .from('quote_requests')
+            .select('*, profiles(id, full_name, phone, avatar_url, wilaya, municipality), quote_offers(*)')
+            .order('created_at', { ascending: false });
+          
+          if (!showAllWilayas) {
+            query = query.eq('wilaya', currentProfile.wilaya).eq('category', currentProfile.category);
+          }
+          const { data } = await query;
+          const allReqs = data || [];
+          openRequests = allReqs.filter(r => r.status === 'open');
+          historyRequests = allReqs.filter(r => {
+            const hasMySelectedOffer = (r.quote_offers || []).some(o => o.merchant_id === currentProfile.id && o.status === 'selected');
+            return hasMySelectedOffer || r.status === 'accepted';
+          });
+        }
+      } catch (err) {
+        console.error(err);
+      }
+      renderCurrentTab();
+    }
+
+    function renderCurrentTab() {
+      const main = document.getElementById('main-content');
+      if (currentTab === 'profile') {
+        main.innerHTML = renderProfileView();
+        populateWilayas();
+        const editWilaya = document.getElementById('edit-wilaya');
+        if (editWilaya) editWilaya.value = currentProfile.wilaya;
+        return;
+      }
+      if (currentTab === 'history') {
+        main.innerHTML = renderHistoryView();
+        return;
+      }
+      if (currentTab === 'deals') {
+        main.innerHTML = renderFlashDealsView();
+        return;
+      }
+      if (currentProfile.role === 'customer') {
+        main.innerHTML = currentTab === 'home' ? renderCustomerNewRequest() : renderCustomerOrders();
+        populateWilayas();
+        const reqWilaya = document.getElementById('req-wilaya');
+        if (reqWilaya) reqWilaya.value = currentProfile.wilaya;
+      } else {
+        main.innerHTML = renderMerchantDashboard();
+      }
+    }
+
+    function renderFlashDealsView() {
+      const isMerchant = currentProfile.role === 'merchant';
+      const myDeals = flashDeals.filter(d => d.merchant_id === currentProfile.id);
+
+      return `
+        <div class="space-y-4">
+          <div class="bg-gradient-to-r from-amber-500 to-orange-600 rounded-2xl p-4 text-white shadow-md">
+            <h2 class="font-extrabold text-base flex items-center gap-2"><span>⚡</span> العروض السريعة والخصومات اليومية</h2>
+            <p class="text-xs text-amber-100 mt-1">عروض حصرية محدودة الوقت من محلات ولايتك (${currentProfile.wilaya})</p>
+          </div>
+
+          ${isMerchant ? `
+            <div class="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 space-y-3">
+              <h3 class="font-extrabold text-sm text-gray-800">➕ إضافة عرض سريع جديد لزبائن ولايتك</h3>
+              <input id="deal-title" type="text" placeholder="عنوان العرض (مثال: تخفيض 20% على الإسمنت)" class="w-full px-3.5 py-2.5 rounded-xl border border-gray-200 text-xs outline-none focus:border-emerald-500">
+              <textarea id="deal-desc" rows="2" placeholder="تفاصيل العرض والمميزات..." class="w-full px-3.5 py-2.5 rounded-xl border border-gray-200 text-xs outline-none"></textarea>
+              <div class="grid grid-cols-2 gap-2">
+                <input id="deal-price" type="number" placeholder="السعر بعد التخفيض (دج)" class="px-3.5 py-2.5 rounded-xl border border-gray-200 text-xs outline-none">
+                <input id="deal-orig-price" type="number" placeholder="السعر الأصلي (اختياري)" class="px-3.5 py-2.5 rounded-xl border border-gray-200 text-xs outline-none">
+              </div>
+              <button onclick="publishFlashDeal()" class="w-full bg-orange-600 hover:bg-orange-700 text-white font-bold py-2.5 rounded-xl text-xs shadow-sm">
+                نشر العرض الفوري الآن
+              </button>
+            </div>
+
+            <div class="space-y-3 mt-4">
+              <h3 class="font-extrabold text-sm text-gray-800 px-1">عروضي السريعة النشطة:</h3>
+              ${myDeals.length === 0 ? `<p class="text-xs text-gray-400 text-center py-4 bg-white rounded-2xl">لم تنشر أي عرض سريع بعد</p>` :
+                myDeals.map(d => `
+                  <div class="bg-white rounded-2xl p-3.5 shadow-sm border border-orange-100 flex justify-between items-center">
+                    <div>
+                      <h4 class="font-extrabold text-sm text-gray-900">${d.title}</h4>
+                      <div class="text-xs font-extrabold text-orange-600 mt-0.5">${Number(d.price).toLocaleString()} دج ${d.original_price ? `<span class="line-through text-gray-400 text-[11px] mr-1">${Number(d.original_price).toLocaleString()} دج</span>` : ''}</div>
+                    </div>
+                    <button onclick="deleteFlashDeal('${d.id}')" class="bg-red-50 text-red-600 p-2 rounded-xl text-xs font-bold">حذف</button>
+                  </div>
+                `).join('')
+              }
+            </div>
+          ` : `
+            <div class="space-y-3">
+              ${flashDeals.length === 0 ? `
+                <div class="text-center py-12 bg-white rounded-2xl border border-gray-100 p-6">
+                  <div class="text-4xl mb-2">⚡</div>
+                  <p class="font-bold text-gray-700 text-sm">لا توجد عروض سريعة حالياً في ولايتك</p>
+                  <p class="text-xs text-gray-400 mt-1">سيتم إشعارك فور نشر التجار لعروض جديدة</p>
+                </div>` :
+                flashDeals.map(d => {
+                  const waPhone = formatDzWhatsApp(d.profiles?.phone || '');
+                  const waText = encodeURIComponent(`السلام عليكم، مهتم بالعرض السريع: "${d.title}" بسعر ${Number(d.price).toLocaleString()} دج.`);
+                  const merchantAvatar = d.profiles?.avatar_url
+                    ? `<img src="${d.profiles.avatar_url}" class="w-10 h-10 rounded-full object-cover border cursor-pointer" onclick="viewUserProfile('${d.merchant_id}')">`
+                    : `<div class="w-10 h-10 bg-emerald-100 text-emerald-700 rounded-full flex items-center justify-center font-extrabold text-sm cursor-pointer" onclick="viewUserProfile('${d.merchant_id}')">🏪</div>`;
+                  
+                  return `
+                    <div class="bg-white rounded-2xl p-4 shadow-sm border border-orange-100 space-y-2">
+                      <div class="flex items-center justify-between">
+                        <div class="flex items-center gap-2.5">
+                          ${merchantAvatar}
+                          <div>
+                            <div class="font-extrabold text-sm text-gray-900 cursor-pointer hover:text-emerald-600" onclick="viewUserProfile('${d.merchant_id}')">${d.profiles?.shop_name || 'محل تجاري'} ⭐</div>
+                            <div class="text-[11px] text-gray-400">📍 ${d.profiles?.municipality || d.wilaya}</div>
+                          </div>
+                        </div>
+                        <span class="bg-orange-100 text-orange-800 text-[10px] font-extrabold px-2 py-1 rounded-full animate-pulse">⚡ عرض سريع</span>
+                      </div>
+
+                      <div>
+                        <h3 class="font-extrabold text-sm text-gray-900 mt-1">${d.title}</h3>
+                        ${d.description ? `<p class="text-xs text-gray-600 mt-1">${d.description}</p>` : ''}
+                      </div>
+
+                      <div class="flex items-center justify-between pt-2 border-t border-gray-100">
+                        <div class="text-base font-extrabold text-orange-600">
+                          ${Number(d.price).toLocaleString()} دج
+                          ${d.original_price ? `<span class="line-through text-gray-400 text-xs mr-2 font-normal">${Number(d.original_price).toLocaleString()} دج</span>` : ''}
+                        </div>
+                        <div class="flex gap-1.5">
+                          <a href="tel:${d.profiles?.phone || ''}" class="bg-emerald-600 text-white px-3 py-1.5 rounded-lg text-xs font-bold">📞 اتصال</a>
+                          <a href="https://wa.me/${waPhone}?text=${waText}" target="_blank" class="bg-[#25D366] text-white px-3 py-1.5 rounded-lg text-xs font-bold">💬 واتساب</a>
+                        </div>
+                      </div>
+                    </div>`;
+                }).join('')
+              }
+            </div>
+          `}
+        </div>`;
+    }
+
+    async function publishFlashDeal() {
+      const title = document.getElementById('deal-title').value.trim();
+      const description = document.getElementById('deal-desc').value.trim();
+      const price = document.getElementById('deal-price').value;
+      const original_price = document.getElementById('deal-orig-price').value || null;
+
+      if (!title || !price) return showToast('يرجى كتابة عنوان العرض السريع والسعر', true);
+
+      const expiresAt = new Date();
+      expiresAt.setDate(expiresAt.getDate() + 1);
+
+      const { error } = await sb.from('flash_deals').insert({
+        merchant_id: currentProfile.id,
+        title,
+        description,
+        price: Number(price),
+        original_price: original_price ? Number(original_price) : null,
+        category: currentProfile.category || 'supermarket',
+        wilaya: currentProfile.wilaya,
+        expires_at: expiresAt.toISOString()
+      });
+
+      if (error) {
+        showToast('خطأ في نشر العرض: ' + error.message, true);
+      } else {
+        showToast('⚡ تم نشر العرض السريع بنجاح وإرسال الإشعارات للزبائن!');
+        document.getElementById('deal-title').value = '';
+        document.getElementById('deal-desc').value = '';
+        document.getElementById('deal-price').value = '';
+        document.getElementById('deal-orig-price').value = '';
+        await loadAllData();
+      }
+    }
+
+    async function deleteFlashDeal(dealId) {
+      const { error } = await sb.from('flash_deals').delete().eq('id', dealId);
+      if (!error) {
+        showToast('تم حذف العرض بنجاح');
+        await loadAllData();
+      }
+    }
+
+    function renderHistoryView() {
+      if (historyRequests.length === 0) {
+        return `<div class="text-center py-12 bg-white rounded-2xl border border-gray-100 p-6">
+          <div class="text-4xl mb-2">📜</div>
+          <p class="font-bold text-gray-700 text-sm">سجل الطلبات السابقة فارغ حالياً</p>
+        </div>`;
+      }
+      return `<div class="space-y-4">
+        <h2 class="font-extrabold text-sm text-gray-800 px-1">سجل المعاملات والطلبات السابقة</h2>
+        ${historyRequests.map(req => {
+          const cat = CATEGORIES[req.category] || CATEGORIES.supermarket;
+          return `
+            <div class="bg-white rounded-2xl p-4 shadow-sm border border-emerald-100 space-y-2">
+              <div class="flex justify-between items-start">
+                <div>
+                  <span class="text-[10px] bg-emerald-50 text-emerald-700 font-bold px-2 py-0.5 rounded-md">${cat.icon} ${cat.short}</span>
+                  <h3 class="font-extrabold text-sm text-gray-900 mt-1">${req.title}</h3>
+                  <p class="text-[11px] text-gray-400">📍 ${req.wilaya}</p>
+                </div>
+                <span class="text-[10px] bg-emerald-600 text-white font-bold px-2.5 py-1 rounded-full">مكتمل</span>
+              </div>
+            </div>`;
+        }).join('')}
+      </div>`;
+    }
+
+    function renderCustomerNewRequest() {
+      const cat = CATEGORIES[selectedCategory];
+      return `
+        <div class="space-y-4">
+          <div class="bg-white p-4 rounded-2xl shadow-sm border border-gray-100">
+            <h2 class="font-extrabold text-sm text-gray-800 mb-3">1. اختر مجال المشتريات</h2>
+            <div class="grid grid-cols-2 gap-2.5">
+              ${Object.entries(CATEGORIES).map(([key, c]) => `
+                <button type="button" onclick="selectCat('${key}')" class="p-3 rounded-xl border-2 text-right transition ${selectedCategory === key ? 'border-emerald-600 bg-emerald-50/70' : 'border-gray-100 bg-gray-50'}">
+                  <div class="text-2xl mb-1">${c.icon}</div>
+                  <div class="text-xs font-extrabold text-gray-800">${c.short}</div>
+                </button>
+              `).join('')}
+            </div>
+          </div>
+
+          <div class="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 space-y-3">
+            <h2 class="font-extrabold text-sm text-gray-800">2. تفاصيل الطلب وقائمة المواد</h2>
+            <div>
+              <label class="block text-xs font-bold text-gray-600 mb-1">عنوان مختصر للطلب</label>
+              <input id="req-title" type="text" placeholder="مثال: مقاضي الأسبوع / مواد بناء" class="w-full px-3.5 py-2.5 rounded-xl border border-gray-200 text-sm outline-none focus:border-emerald-500">
+            </div>
+
+            <div class="grid grid-cols-2 gap-2">
+              <div>
+                <label class="block text-xs font-bold text-gray-600 mb-1">الولاية</label>
+                <select id="req-wilaya" class="wilaya-select w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm bg-white outline-none"></select>
+              </div>
+              <div>
+                <label class="block text-xs font-bold text-gray-600 mb-1">البلدية</label>
+                <input id="req-municipality" type="text" value="${currentProfile.municipality || ''}" placeholder="البلدية" class="w-full px-3.5 py-2.5 rounded-xl border border-gray-200 text-sm outline-none">
+              </div>
+            </div>
+
+            <div class="bg-gray-50 p-3 rounded-xl border border-gray-200/70">
+              <label class="block text-xs font-bold text-gray-700 mb-2">أضف المواد المطلوبة:</label>
+              <div class="flex gap-1.5 overflow-x-auto hide-scroll pb-2 mb-2">
+                ${cat.suggestions.map(s => `
+                  <button type="button" onclick="quickAddItem('${s}')" class="shrink-0 text-[11px] bg-white border border-emerald-200 text-emerald-700 px-2.5 py-1 rounded-full font-bold">+ ${s}</button>
+                `).join('')}
+              </div>
+              <div class="flex gap-2">
+                <input id="item-name" type="text" placeholder="اسم المادة..." class="flex-1 px-3 py-2 rounded-lg border border-gray-200 bg-white text-xs outline-none">
+                <input id="item-qty" type="text" placeholder="الكمية" class="w-20 px-2.5 py-2 rounded-lg border border-gray-200 bg-white text-xs outline-none">
+                <button type="button" onclick="addDraftItem()" class="bg-emerald-600 text-white px-3.5 py-2 rounded-lg text-xs font-bold">إضافة</button>
+              </div>
+              <div id="draft-items-list" class="mt-2.5 space-y-1.5">
+                ${draftItems.map((it, idx) => `
+                  <div class="flex justify-between items-center bg-white px-3 py-1.5 rounded-lg border border-gray-100 text-xs">
+                    <span class="font-bold">${it.name} <span class="text-emerald-600">(${it.qty})</span></span>
+                    <button type="button" onclick="removeDraftItem(${idx})" class="text-red-500 font-bold px-1">✕</button>
+                  </div>
+                `).join('')}
+              </div>
+            </div>
+
+            <div>
+              <label class="block text-xs font-bold text-gray-600 mb-1">📷 إرفاق صورة (اختياري)</label>
+              <input type="file" accept="image/*" onchange="handleImageUpload(event)" class="w-full text-xs text-gray-500 file:py-2 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-bold file:bg-emerald-50 file:text-emerald-700">
+              ${draftImageBase64 ? `<img src="${draftImageBase64}" class="mt-2 h-24 rounded-lg object-cover border">` : ''}
+            </div>
+
+            <button type="button" onclick="submitQuoteRequest()" id="send-req-btn" class="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold py-3.5 rounded-xl shadow-md text-sm">
+              🚀 إرسال طلب التسعيرة للتجار الآن
+            </button>
+          </div>
+        </div>`;
+    }
+
+    function selectCat(cat) { selectedCategory = cat; renderCurrentTab(); }
+    function quickAddItem(name) { draftItems.push({ name, qty: '1' }); renderCurrentTab(); }
+    function addDraftItem() {
+      const name = document.getElementById('item-name').value.trim();
+      const qty = document.getElementById('item-qty').value.trim() || '1';
+      if (!name) return;
+      draftItems.push({ name, qty });
+      renderCurrentTab();
+    }
+    function removeDraftItem(idx) { draftItems.splice(idx, 1); renderCurrentTab(); }
+
+    function handleImageUpload(e) {
+      const file = e.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = function(ev) {
+        const img = new Image();
+        img.onload = function() {
+          const canvas = document.createElement('canvas');
+          const maxW = 700;
+          const scale = Math.min(1, maxW / img.width);
+          canvas.width = img.width * scale;
+          canvas.height = img.height * scale;
+          canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
+          draftImageBase64 = canvas.toDataURL('image/jpeg', 0.65);
+          renderCurrentTab();
+        };
+        img.src = ev.target.result;
+      };
+      reader.readAsDataURL(file);
+    }
+
+    async function submitQuoteRequest() {
+      const title = document.getElementById('req-title').value.trim();
+      const wilaya = document.getElementById('req-wilaya').value;
+      const municipality = document.getElementById('req-municipality').value.trim();
+
+      if (!title) return showToast('يرجى كتابة عنوان للطلب', true);
+
+      const btn = document.getElementById('send-req-btn');
+      btn.disabled = true;
+      btn.textContent = 'جاري إرسال الطلب...';
+
+      const { error } = await sb.from('quote_requests').insert({
+        customer_id: currentProfile.id,
+        category: selectedCategory,
+        wilaya,
+        municipality,
+        title,
+        items: draftItems,
+        image_url: draftImageBase64,
+        status: 'open'
+      });
+
+      if (error) {
+        showToast('حدث خطأ: ' + error.message, true);
+        btn.disabled = false;
+        btn.textContent = '🚀 إرسال طلب التسعيرة للتجار الآن';
+      } else {
+        draftItems = [];
+        draftImageBase64 = null;
+        showToast('تم إرسال طلبك للتجار بنجاح!');
+        await loadAllData();
+        switchTab('orders');
+      }
+    }
+
+    function renderCustomerOrders() {
+      if (myRequests.length === 0) {
+        return `<div class="text-center py-12 bg-white rounded-2xl border border-gray-100 p-6">
+          <div class="text-4xl mb-2">📭</div>
+          <p class="font-bold text-gray-700">لم ترسل أي طلب تسعيرة بعد</p>
+        </div>`;
+      }
+      return `<div class="space-y-4">
+        ${myRequests.map(req => {
+          const cat = CATEGORIES[req.category] || CATEGORIES.supermarket;
+          const offers = (req.quote_offers || []).sort((a, b) => Number(a.total_price) - Number(b.total_price));
+          return `
+            <div class="bg-white rounded-2xl p-4 shadow-sm border border-gray-100">
+              <div class="flex justify-between items-start mb-2">
+                <div>
+                  <span class="text-[11px] bg-emerald-50 text-emerald-700 font-bold px-2 py-0.5 rounded-md">${cat.icon} ${cat.short}</span>
+                  <h3 class="font-extrabold text-sm text-gray-900 mt-1">${req.title}</h3>
+                </div>
+                <span class="text-xs font-extrabold px-2.5 py-1 rounded-full ${offers.length > 0 ? 'bg-amber-100 text-amber-800' : 'bg-gray-100 text-gray-500'}">${offers.length} عروض</span>
+              </div>
+              <div class="mt-3 pt-3 border-t border-gray-100 space-y-2.5">
+                ${offers.map((of, idx) => {
+                  const waPhone = formatDzWhatsApp(of.profiles?.phone || '');
+                  return `
+                    <div class="p-3 rounded-xl border ${idx === 0 ? 'border-emerald-500 bg-emerald-50/40' : 'border-gray-200 bg-gray-50'}">
+                      <div class="flex items-center justify-between">
+                        <div>
+                          <div class="font-extrabold text-sm text-gray-900 cursor-pointer hover:text-emerald-600" onclick="viewUserProfile('${of.merchant_id}')">${of.profiles?.shop_name || 'محل تجاري'} ⭐</div>
+                        </div>
+                        <div class="text-base font-extrabold text-emerald-700">${Number(of.total_price).toLocaleString()} دج</div>
+                      </div>
+                      <div class="grid grid-cols-2 gap-2 mt-2">
+                        <a href="tel:${of.profiles?.phone || ''}" class="bg-emerald-600 text-white text-center py-1.5 rounded-lg text-xs font-bold">📞 اتصال</a>
+                        <a href="https://wa.me/${waPhone}" target="_blank" class="bg-[#25D366] text-white text-center py-1.5 rounded-lg text-xs font-bold">💬 واتساب</a>
+                      </div>
+                    </div>`;
+                }).join('')}
+              </div>
+            </div>`;
+        }).join('')}
+      </div>`;
+    }
+
+    function renderMerchantDashboard() {
+      return `<div class="space-y-4">
+        <div class="bg-white p-3 rounded-2xl border border-gray-100 flex justify-between items-center">
+          <span class="text-xs font-bold text-gray-700">نطاق عرض الطلبات:</span>
+          <button onclick="toggleWilayaScope()" class="text-xs font-bold px-3 py-1.5 rounded-xl ${showAllWilayas ? 'bg-amber-100 text-amber-800' : 'bg-emerald-50 text-emerald-700'}">
+            ${showAllWilayas ? '🌍 كل الولايات' : `📍 ${currentProfile.wilaya} فقط`}
+          </button>
+        </div>
+
+        ${openRequests.length === 0 ? `
+          <div class="text-center py-12 bg-white rounded-2xl border border-gray-100 p-6">
+            <div class="text-4xl mb-2">🔎</div>
+            <p class="font-bold text-gray-700 text-sm">لا توجد طلبات مفتوحة حاليًا في نطاقك</p>
+          </div>` :
+          openRequests.map(req => {
+            const cat = CATEGORIES[req.category] || CATEGORIES.supermarket;
+            const myOffer = (req.quote_offers || []).find(o => o.merchant_id === currentProfile.id);
+            return `
+              <div class="bg-white rounded-2xl p-4 shadow-sm border border-gray-100 space-y-2.5">
+                <div>
+                  <span class="text-[10px] bg-blue-50 text-blue-700 font-bold px-2 py-0.5 rounded-md">${cat.icon} ${cat.short}</span>
+                  <h3 class="font-extrabold text-sm text-gray-900 mt-1">${req.title}</h3>
+                </div>
+                ${myOffer ? `<div class="bg-emerald-50 p-2 rounded-xl text-xs font-bold text-emerald-800">✅ أرسلت عرضك بقيمة: ${Number(myOffer.total_price).toLocaleString()} دج</div>` : `
+                  <div class="pt-2 border-t border-gray-100 space-y-2">
+                    <input type="number" id="price-${req.id}" placeholder="السعر الإجمالي (دج)" class="w-full px-3 py-2 rounded-xl border border-emerald-300 bg-emerald-50/30 text-xs font-extrabold outline-none">
+                    <button onclick="sendMerchantOffer('${req.id}')" class="w-full bg-emerald-600 text-white font-bold py-2 rounded-xl text-xs">إرسال التسعيرة للزبون</button>
+                  </div>
+                `}
+              </div>`;
+          }).join('')}
+      </div>`;
+    }
+
+    function toggleWilayaScope() { showAllWilayas = !showAllWilayas; loadAllData(); }
+
+    async function sendMerchantOffer(reqId) {
+      const price = document.getElementById(`price-${reqId}`).value;
+      if (!price || Number(price) <= 0) return showToast('أدخل السعر الإجمالي', true);
+
+      const { error } = await sb.from('quote_offers').insert({
+        request_id: reqId,
+        merchant_id: currentProfile.id,
+        total_price: Number(price)
+      });
+
+      if (error) showToast('خطأ: ' + error.message, true);
+      else { showToast('تم إرسال تسعيرتك بنجاح!'); await loadAllData(); }
+    }
+
+    function renderProfileView() {
+      const isMerchant = currentProfile.role === 'merchant';
+      const avatarDisplay = editAvatarBase64 || currentProfile.avatar_url;
+      const avatarHtml = avatarDisplay
+        ? `<img src="${avatarDisplay}" class="w-20 h-20 rounded-full object-cover mx-auto border-2 border-emerald-500 shadow-sm mb-2">`
+        : `<div class="w-20 h-20 bg-emerald-100 text-emerald-700 rounded-full mx-auto flex items-center justify-center text-3xl font-extrabold mb-2">${isMerchant ? '🏪' : '👤'}</div>`;
+
+      return `
+        <div class="bg-white rounded-2xl p-5 shadow-sm border border-gray-100 space-y-4">
+          <div class="text-center pb-3 border-b border-gray-100">
+            <div id="edit-avatar-preview" class="w-20 h-20 rounded-full overflow-hidden mx-auto">${avatarHtml}</div>
+            <h2 class="font-extrabold text-base text-gray-900 mt-1">${currentProfile.shop_name || currentProfile.full_name}</h2>
+          </div>
+          <button onclick="handleLogout()" class="w-full bg-red-50 text-red-600 font-bold py-2.5 rounded-xl text-xs">تسجيل الخروج</button>
+        </div>`;
+    }
+
+    async function handleLogout() {
+      await sb.auth.signOut();
+      currentUser = null;
+      currentProfile = null;
+      showAuthView();
+    }
+
+    window.addEventListener('DOMContentLoaded', initApp);
+  </script>
+</body>
+</html>
