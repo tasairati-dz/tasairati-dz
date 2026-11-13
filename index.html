@@ -414,22 +414,42 @@
       reader.readAsDataURL(file);
     }
 
+    // [إصلاح جذري ومضمون لدالة التحقق برقم الهاتف واستعادة الحساب]
     async function handleAuth(e) {
       e.preventDefault();
-      const phone = document.getElementById('auth-phone').value.trim().replace(/\s+/g, '');
+      const phoneInput = document.getElementById('auth-phone');
+      const phone = phoneInput ? phoneInput.value.trim().replace(/\s+/g, '') : '';
       const btn = document.getElementById('auth-submit-btn');
 
       if (authMode === 'forgot') {
-        if (!phone) { showToast('أدخل رقم الهاتف المسجل', true); return; }
-        btn.disabled = true; btn.textContent = 'جاري التحقق من الرقم...';
+        if (!phone) {
+          showToast('يرجى إدخال رقم الهاتف', true);
+          return;
+        }
+        btn.disabled = true; 
+        btn.textContent = 'جاري البحث عن الحساب...';
+        
         try {
-          const { data, error } = await sb.from('profiles').select('full_name, shop_name').eq('phone', phone).single();
-          if (error || !data) throw new Error('رقم الهاتف غير مسجل في النظام!');
-          const ownerName = data.shop_name || data.full_name;
-          alert(`✅ تم العثور على حسابك بنجاح!\n\nصاحب الحساب: ${ownerName}\nرقم الهاتف: ${phone}\n\nيرجى تسجيل الدخول أو إنشاء حساب جديد بنفس الرقم.`);
-          switchAuthMode('login');
-        } catch (err) { showToast(err.message, true); }
-        finally { btn.disabled = false; btn.textContent = 'تحقق من رقم الهاتف'; }
+          // استعلام آمن ومباشر للبحث عن رقم الهاتف في جدول profiles
+          const { data, error } = await sb.from('profiles').select('full_name, shop_name, phone').eq('phone', phone).maybeSingle();
+          
+          if (error) {
+            throw new Error('حدث خطأ في الاتصال بقاعدة البيانات');
+          }
+          
+          if (!data) {
+            alert(`❌ رقم الهاتف (${phone}) غير مسجل في التطبيق.`);
+          } else {
+            const ownerName = data.shop_name || data.full_name;
+            alert(`✅ تم العثور على حسابك بنجاح!\n\nصاحب الحساب: ${ownerName}\nرقم الهاتف: ${phone}\n\nيمكنك الآن تسجيل الدخول أو إنشاء حساب جديد بنفس الرقم.`);
+            switchAuthMode('login');
+          }
+        } catch (err) {
+          showToast(err.message || 'خطأ في التحقق', true);
+        } finally {
+          btn.disabled = false; 
+          btn.textContent = 'تحقق من رقم الهاتف';
+        }
         return;
       }
 
@@ -552,7 +572,6 @@
 
     function renderFlashDealsView() {
       const isMerchant = currentProfile.role === 'merchant';
-      const myDeals = flashDeals.filter(d => d.merchant_id === currentProfile.id);
       return `
         <div class="space-y-4">
           <div class="bg-gradient-to-r from-amber-500 to-orange-600 rounded-2xl p-4 text-white shadow-md">
@@ -618,7 +637,6 @@
 
     function renderCustomerOrders() { return `<div class="text-center py-12 ${isDarkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-100'} rounded-2xl border p-6"><p class="font-bold">طلباتك الحالية</p></div>`; }
 
-    // لوحة التجار مع تسعير المواد الفردية
     function renderMerchantDashboard() {
       return `<div class="space-y-4">
         <div class="${isDarkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-100'} p-3 rounded-2xl border flex justify-between items-center">
@@ -672,7 +690,6 @@
       showToast('تم إرسال تسعيرتك بنجاح!'); loadAllData();
     }
 
-    // واجهة تعديل الملف الشخصي
     function renderProfileView() {
       const isMerchant = currentProfile.role === 'merchant';
       const avatarDisplay = editAvatarBase64 || currentProfile.avatar_url;
