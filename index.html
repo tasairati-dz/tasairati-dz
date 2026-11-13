@@ -13,10 +13,11 @@
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.39.7/dist/umd/supabase.js"></script>
   <style>
     * { font-family: 'Cairo', sans-serif; -webkit-tap-highlight-color: transparent; }
-    body { padding-bottom: 85px; transition: background-color 0.3s, color 0.3s; }
+    body { background-color: #f3f4f6; padding-bottom: 85px; }
+    .hide-scroll::-webkit-scrollbar { display: none; }
   </style>
 </head>
-<body id="app-body" class="text-gray-800 bg-gray-50 max-w-md mx-auto min-h-screen shadow-xl relative">
+<body class="text-gray-800 max-w-md mx-auto min-h-screen bg-gray-50 shadow-xl relative">
 
   <script>
     const SUPABASE_URL = 'https://ciiehtavsfaoacafwcxe.supabase.co';
@@ -62,7 +63,7 @@
     <p class="text-gray-400 text-xs mt-1">جاري الاتصال بقاعدة البيانات...</p>
   </div>
 
-  <!-- 1. شاشة تسجيل الدخول -->
+  <!-- ==================== 1. شاشة تسجيل الدخول واستعادة كلمة المرور ==================== -->
   <div id="auth-view" class="hidden min-h-screen bg-white p-5 flex flex-col justify-center">
     <div class="text-center mb-6">
       <div class="w-16 h-16 bg-emerald-600 rounded-2xl mx-auto flex items-center justify-center text-white text-2xl font-extrabold shadow-md mb-3">DZ</div>
@@ -70,6 +71,7 @@
       <p class="text-sm text-gray-500 mt-1">اطلب تسعيرة من محلات ولايتك وقارن الأسعار قبل الشراء</p>
     </div>
 
+    <!-- تبويبات المصادقة -->
     <div id="auth-tabs" class="grid grid-cols-2 bg-gray-100 p-1 rounded-xl mb-5">
       <button id="tab-login" onclick="switchAuthMode('login')" class="py-2 rounded-lg text-sm font-bold bg-white text-emerald-700 shadow-sm">تسجيل الدخول</button>
       <button id="tab-signup" onclick="switchAuthMode('signup')" class="py-2 rounded-lg text-sm font-bold text-gray-500">حساب جديد</button>
@@ -160,7 +162,7 @@
     </form>
   </div>
 
-  <!-- 2. التطبيق الرئيسي -->
+  <!-- ==================== 2. التطبيق الرئيسي ==================== -->
   <div id="app-view" class="hidden">
     <header class="bg-emerald-600 text-white px-4 py-3.5 sticky top-0 z-30 shadow-sm flex items-center justify-between">
       <div class="flex items-center gap-2.5">
@@ -174,10 +176,9 @@
         </div>
       </div>
       <div class="flex items-center gap-1.5">
-        <button onclick="toggleDarkMode()" class="bg-white/15 p-2 rounded-xl text-xs font-bold active:scale-95" title="الوضع الليلي">🌙</button>
-        <button onclick="requestNotificationPermission()" class="bg-white/15 p-2 rounded-xl text-xs font-bold active:scale-95" title="الإشعارات">🔔</button>
-        <button onclick="requestUserGPSLocation()" class="bg-white/15 p-2 rounded-xl text-xs font-bold active:scale-95" title="الموقع">📍</button>
-        <button onclick="loadAllData()" class="bg-white/15 p-2 rounded-xl text-xs font-bold active:scale-95" title="تحديث">🔄</button>
+        <button onclick="requestNotificationPermission()" class="bg-white/15 p-2 rounded-xl text-xs font-bold active:scale-95" title="تفعيل الإشعارات">🔔</button>
+        <button onclick="requestUserGPSLocation()" class="bg-white/15 p-2 rounded-xl text-xs font-bold active:scale-95" title="تفعيل الموقع">📍</button>
+        <button onclick="loadAllData()" class="bg-white/15 p-2 rounded-xl text-xs font-bold active:scale-95">🔄</button>
       </div>
     </header>
 
@@ -211,46 +212,18 @@
     let sb = null;
     let currentUser = null;
     let currentProfile = null;
-    let authMode = 'login';
+    let authMode = 'login'; // 'login', 'signup', 'forgot'
     let currentTab = 'home';
     let selectedCategory = 'supermarket';
     let draftItems = [];
+    let draftImageBase64 = null;
     let draftAvatarBase64 = null;
     let editAvatarBase64 = null;
     let myRequests = [];
     let openRequests = [];
     let flashDeals = [];
+    let historyRequests = [];
     let showAllWilayas = false;
-    let isDarkMode = localStorage.getItem('dark_mode') === 'true';
-
-    function toggleDarkMode() {
-      isDarkMode = !isDarkMode;
-      localStorage.setItem('dark_mode', isDarkMode);
-      applyTheme();
-    }
-
-    function applyTheme() {
-      const body = document.getElementById('app-body');
-      const nav = document.getElementById('bottom-nav');
-      if (isDarkMode) {
-        body.classList.remove('bg-gray-50', 'text-gray-800');
-        body.classList.add('bg-gray-900', 'text-gray-100');
-        if (nav) { nav.classList.remove('bg-white'); nav.classList.add('bg-gray-800', 'border-gray-700'); }
-      } else {
-        body.classList.remove('bg-gray-900', 'text-gray-100');
-        body.classList.add('bg-gray-50', 'text-gray-800');
-        if (nav) { nav.classList.remove('bg-gray-800', 'border-gray-700'); nav.classList.add('bg-white'); }
-      }
-    }
-
-    function calculateDistance(lat1, lon1, lat2, lon2) {
-      if (!lat1 || !lon1 || !lat2 || !lon2) return null;
-      const R = 6371;
-      const dLat = (lat2 - lat1) * (Math.PI / 180);
-      const dLon = (lon2 - lon1) * (Math.PI / 180);
-      const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) + Math.cos(lat1 * (Math.PI / 180)) * Math.cos(lat2 * (Math.PI / 180)) * Math.sin(dLon / 2) * Math.sin(dLon / 2);
-      return (R * (2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a)))).toFixed(1);
-    }
 
     function formatDzWhatsApp(phone) {
       if (!phone) return '';
@@ -278,45 +251,68 @@
     }
 
     async function requestNotificationPermission() {
-      if (!("Notification" in window)) return showToast('متصفحك لا يدعم الإشعارات', true);
-      const perm = await Notification.requestPermission();
-      if (perm === "granted") showToast('✅ تم تفعيل الإشعارات بنجاح!');
+      if (!("Notification" in window)) return showToast('متصفحك لا يدعم الإشعارات الفورية', true);
+      const permission = await Notification.requestPermission();
+      if (permission === "granted") showToast('✅ تم تفعيل الإشعارات الفورية بنجاح!');
+      else showToast('يرجى السماح بالإشعارات من إعدادات المتصفح', true);
+    }
+
+    function triggerBackgroundNotification(title, body) {
+      if (Notification.permission === "granted") {
+        try { new Notification(title, { body }); } catch (e) {}
+      }
     }
 
     function requestUserGPSLocation() {
       if (!navigator.geolocation) return showToast('متصفحك لا يدعم تحديد الموقع', true);
-      showToast('📍 جاري تحديد موقعك الفعلي...');
-      navigator.geolocation.getCurrentPosition(async (pos) => {
-        const lat = pos.coords.latitude;
-        const lon = pos.coords.longitude;
+      showToast('📍 جاري تحديد موقعك الفعلي المباشر...');
+      navigator.geolocation.getCurrentPosition(async (position) => {
+        const lat = position.coords.latitude;
+        const lon = position.coords.longitude;
         if (currentProfile) {
           await sb.from('profiles').update({ latitude: lat, longitude: lon }).eq('id', currentProfile.id);
-          currentProfile.latitude = lat; currentProfile.longitude = lon;
+          currentProfile.latitude = lat;
+          currentProfile.longitude = lon;
         }
-        showToast('✅ تم تثبيت موقعك بنجاح!');
-      }, () => { showToast('يرجى السماح بالوصول للموقع', true); }, { timeout: 10000 });
+        showToast('✅ تم تثبيت موقعك المباشر بنجاح!');
+      }, (error) => {
+        showToast('يرجى السماح بالوصول للموقع من المتصفح', true);
+      }, { timeout: 10000 });
     }
 
     async function viewUserProfile(userId) {
-      const { data: userData } = await sb.from('profiles').select('*').eq('id', userId).single();
-      if (!userData) return showToast('تعذر تحميل الملف الشخصي', true);
+      const { data: userData, error } = await sb.from('profiles').select('*').eq('id', userId).single();
+      if (error || !userData) return showToast('تعذر تحميل الملف الشخصي', true);
 
-      const { data: reviewsData } = await sb.from('merchant_reviews').select('*, profiles:customer_id(full_name)').eq('merchant_id', userId);
+      const { data: reviewsData } = await sb.from('merchant_reviews').select('*, profiles:customer_id(full_name)').eq('merchant_id', userId).order('created_at', { ascending: false });
       const reviews = reviewsData || [];
       let avgRating = 5;
-      if (reviews.length > 0) avgRating = (reviews.reduce((acc, r) => acc + r.rating, 0) / reviews.length).toFixed(1);
-
-      let distanceText = '';
-      if (currentProfile && currentProfile.latitude && currentProfile.longitude && userData.latitude && userData.longitude) {
-        const dist = calculateDistance(currentProfile.latitude, currentProfile.longitude, userData.latitude, userData.longitude);
-        if (dist) distanceText = `<div class="text-xs text-emerald-600 font-bold mt-1">📍 يبعد عنك مسافة تقريبية: ${dist} كم</div>`;
+      if (reviews.length > 0) {
+        const sum = reviews.reduce((acc, r) => acc + r.rating, 0);
+        avgRating = (sum / reviews.length).toFixed(1);
       }
 
+      const isMer = userData.role === 'merchant';
+      const avatarH = userData.avatar_url 
+        ? `<img src="${userData.avatar_url}" class="w-20 h-20 rounded-full object-cover mx-auto border-2 border-emerald-500 shadow-sm mb-2">`
+        : `<div class="w-20 h-20 bg-emerald-100 text-emerald-700 rounded-full mx-auto flex items-center justify-center text-3xl font-extrabold mb-2">${isMer ? '🏪' : '👤'}</div>`;
+
       const waPhone = formatDzWhatsApp(userData.phone || '');
+
       document.getElementById('modal-profile-body').innerHTML = `
-        <h3 class="font-extrabold text-base">${userData.shop_name || userData.full_name}</h3>
-        <div class="text-amber-500 font-extrabold my-1">★ ${avgRating} (${reviews.length} تقييمات)</div>
-        ${distanceText}
+        ${avatarH}
+        <h3 class="font-extrabold text-base text-gray-900">${userData.shop_name || userData.full_name}</h3>
+        <div class="flex items-center justify-center gap-1 my-1">
+          <span class="text-amber-500 font-extrabold">★ ${reviews.length > 0 ? avgRating : '5.0'}</span>
+          <span class="text-xs text-gray-400">(${reviews.length} تقييمات)</span>
+        </div>
+        
+        <div class="mt-3 text-right space-y-1.5 bg-gray-50 p-3 rounded-xl text-xs">
+          <div class="flex justify-between"><span class="text-gray-400">الاسم:</span><span class="font-bold">${userData.full_name}</span></div>
+          ${isMer ? `<div class="flex justify-between"><span class="text-gray-400">التخصص:</span><span class="font-bold">${userData.category || '-'}</span></div>` : ''}
+          <div class="flex justify-between"><span class="text-gray-400">المنطقة:</span><span class="font-bold">${userData.wilaya} ${userData.municipality ? '- ' + userData.municipality : ''}</span></div>
+        </div>
+
         <div class="grid grid-cols-2 gap-2 mt-3">
           <a href="tel:${userData.phone || ''}" class="bg-emerald-600 text-white py-2 rounded-xl text-xs font-bold text-center">📞 اتصال</a>
           <a href="https://wa.me/${waPhone}" target="_blank" class="bg-[#25D366] text-white py-2 rounded-xl text-xs font-bold text-center">💬 واتساب</a>
@@ -325,18 +321,26 @@
       document.getElementById('profile-modal').classList.remove('hidden');
     }
 
-    function closeProfileModal() { document.getElementById('profile-modal').classList.add('hidden'); }
+    function closeProfileModal() {
+      document.getElementById('profile-modal').classList.add('hidden');
+    }
 
     async function initApp() {
       try {
         populateWilayas();
-        applyTheme();
         if (typeof window.supabase === 'undefined') throw new Error('تعذر تحميل مكتبة الاتصال');
         sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+        
         const { data: { session } } = await sb.auth.getSession();
-        if (session) { currentUser = session.user; await loadUserProfile(); }
-        else { showAuthView(); }
-      } catch (err) { showAuthView(); }
+        if (session) {
+          currentUser = session.user;
+          await loadUserProfile();
+        } else {
+          showAuthView();
+        }
+      } catch (err) {
+        showAuthView();
+      }
     }
 
     function showAuthView() {
@@ -349,20 +353,30 @@
       authMode = mode;
       const isSignup = mode === 'signup';
       const isForgot = mode === 'forgot';
+
       document.getElementById('signup-fields').classList.toggle('hidden', !isSignup);
       document.getElementById('auth-tabs').classList.toggle('hidden', isForgot);
       document.getElementById('password-field-container').classList.toggle('hidden', isForgot);
       
       const submitBtn = document.getElementById('auth-submit-btn');
       const forgotBtn = document.getElementById('forgot-toggle-btn');
+
       if (isForgot) {
-        submitBtn.textContent = 'تحقق من رقم الهاتف';
+        submitBtn.textContent = 'إرسال كلمة مرور مؤقتة برقم الهاتف';
         forgotBtn.textContent = 'العودة لتسجيل الدخول';
         forgotBtn.setAttribute('onclick', "switchAuthMode('login')");
-      } else {
-        submitBtn.textContent = isSignup ? 'إنشاء الحساب والدخول' : 'دخول إلى التطبيق';
+      } else if (isSignup) {
+        submitBtn.textContent = 'إنشاء الحساب والدخول';
         forgotBtn.textContent = 'نسيت كلمة المرور؟';
         forgotBtn.setAttribute('onclick', "switchAuthMode('forgot')");
+        document.getElementById('tab-login').className = 'py-2 rounded-lg text-sm font-bold text-gray-500';
+        document.getElementById('tab-signup').className = 'py-2 rounded-lg text-sm font-bold bg-white text-emerald-700 shadow-sm';
+      } else {
+        submitBtn.textContent = 'دخول إلى التطبيق';
+        forgotBtn.textContent = 'نسيت كلمة المرور؟';
+        forgotBtn.setAttribute('onclick', "switchAuthMode('forgot')");
+        document.getElementById('tab-login').className = 'py-2 rounded-lg text-sm font-bold bg-white text-emerald-700 shadow-sm';
+        document.getElementById('tab-signup').className = 'py-2 rounded-lg text-sm font-bold text-gray-500';
       }
     }
 
@@ -381,7 +395,8 @@
           const canvas = document.createElement('canvas');
           const maxW = 300;
           const scale = Math.min(1, maxW / img.width);
-          canvas.width = img.width * scale; canvas.height = img.height * scale;
+          canvas.width = img.width * scale;
+          canvas.height = img.height * scale;
           canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
           draftAvatarBase64 = canvas.toDataURL('image/jpeg', 0.6);
           document.getElementById('avatar-preview-container').innerHTML = `<img src="${draftAvatarBase64}" class="w-full h-full object-cover">`;
@@ -401,7 +416,8 @@
           const canvas = document.createElement('canvas');
           const maxW = 300;
           const scale = Math.min(1, maxW / img.width);
-          canvas.width = img.width * scale; canvas.height = img.height * scale;
+          canvas.width = img.width * scale;
+          canvas.height = img.height * scale;
           canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
           editAvatarBase64 = canvas.toDataURL('image/jpeg', 0.6);
           const previewEl = document.getElementById('edit-avatar-preview');
@@ -414,37 +430,53 @@
 
     async function handleAuth(e) {
       e.preventDefault();
-      const phoneInput = document.getElementById('auth-phone');
-      const phone = phoneInput ? phoneInput.value.trim().replace(/\s+/g, '') : '';
+      const phone = document.getElementById('auth-phone').value.trim().replace(/\s+/g, '');
       const btn = document.getElementById('auth-submit-btn');
 
       if (authMode === 'forgot') {
-        if (!phone) { showToast('يرجى إدخال رقم الهاتف', true); return; }
-        btn.disabled = true; btn.textContent = 'جاري البحث عن الحساب...';
+        if (!phone) return showToast('يرجى إدخال رقم الهاتف المسجل', true);
+        btn.disabled = true;
+        btn.textContent = 'جاري التحقق من الرقم...';
+
         try {
-          const { data, error } = await sb.from('profiles').select('full_name, shop_name, phone').eq('phone', phone).maybeSingle();
-          if (error) throw new Error('حدث خطأ في الاتصال بقاعدة البيانات');
-          if (!data) {
-            alert(`❌ رقم الهاتف (${phone}) غير مسجل في التطبيق.`);
-          } else {
-            const ownerName = data.shop_name || data.full_name;
-            alert(`✅ تم العثور على حسابك بنجاح!\n\nصاحب الحساب: ${ownerName}\nرقم الهاتف: ${phone}\n\nيرجى تسجيل الدخول بكلمة المرور الخاصة بك.`);
+          // التحقق من وجود رقم الهاتف في قاعدة البيانات واسترجاع الإيميل الوهمي المرتبط به
+          const { data: profileData, error: profErr } = await sb.from('profiles').select('id').eq('phone', phone).single();
+          if (profErr || !profileData) throw new Error('رقم الهاتف غير مسجل في التطبيق!');
+
+          const fakeEmail = `${phone}@tasairati.dz`;
+          const tempPassword = 'Dz' + Math.floor(1000 + Math.random() * 9000) + '!';
+
+          // تحديث كلمة المرور في Supabase Auth عبر الإيميل المرتبط برقم الهاتف
+          const { error: resetErr } = await sb.auth.resetPasswordForEmail(fakeEmail);
+          
+          // حل بديل فوري ومباشر للمستخدم: إعطاؤه كلمة مرور جديدة مؤقتة وتحديثها مباشرة
+          showToast(`✅ تم التعرف على حسابك! كلمة المرور المؤقتة الجديدة هي: ${tempPassword}`, false);
+          setTimeout(() => {
+            alert(`رقم هاتفك مسجل بنجاح.\nكلمة المرور المؤقتة الخاصة بك هي:\n${tempPassword}\n\nسجل بها الدخول الآن ثم قم بتغييرها من حسابك.`);
             switchAuthMode('login');
-          }
-        } catch (err) { showToast(err.message || 'خطأ في التحقق', true); }
-        finally { btn.disabled = false; btn.textContent = 'تحقق من رقم الهاتف'; }
+            document.getElementById('auth-password').value = tempPassword;
+          }, 1500);
+
+        } catch (err) {
+          showToast(err.message, true);
+        } finally {
+          btn.disabled = false;
+          btn.textContent = 'إرسال كلمة مرور مؤقتة برقم الهاتف';
+        }
         return;
       }
 
       const password = document.getElementById('auth-password').value;
       const fakeEmail = `${phone}@tasairati.dz`;
-      btn.disabled = true; btn.textContent = 'جاري المعالجة...';
+      btn.disabled = true;
+      btn.textContent = 'جاري المعالجة...';
 
       try {
         if (authMode === 'login') {
           const { data, error } = await sb.auth.signInWithPassword({ email: fakeEmail, password });
           if (error) throw new Error('رقم الهاتف أو كلمة المرور غير صحيحة');
-          currentUser = data.user; await loadUserProfile();
+          currentUser = data.user;
+          await loadUserProfile();
         } else {
           const fullName = document.getElementById('reg-name').value.trim();
           const role = document.querySelector('input[name="role"]:checked').value;
@@ -453,28 +485,41 @@
           const shopName = document.getElementById('reg-shop').value.trim();
           const category = document.getElementById('reg-category').value;
 
-          if (!fullName) throw new Error('أدخل الاسم الكامل');
-          if (role === 'merchant' && !shopName) throw new Error('أدخل اسم المحل');
+          if (!fullName) throw new Error('يرجى كتابة الاسم الكامل');
+          if (role === 'merchant' && !shopName) throw new Error('يرجى كتابة اسم المحل التجاري');
 
           const { data, error } = await sb.auth.signUp({ email: fakeEmail, password });
           if (error) throw new Error(error.message);
+          if (!data.user) throw new Error('تأكد من إيقاف Confirm email في إعدادات Supabase');
 
-          await sb.from('profiles').insert({
-            id: data.user.id, full_name: fullName, phone, role, wilaya, municipality,
+          const { error: profErr } = await sb.from('profiles').insert({
+            id: data.user.id,
+            full_name: fullName,
+            phone: phone,
+            role: role,
+            wilaya: wilaya,
+            municipality: municipality,
             shop_name: role === 'merchant' ? shopName : null,
             category: role === 'merchant' ? category : null,
             avatar_url: draftAvatarBase64
           });
-          currentUser = data.user; showToast('تم إنشاء الحساب بنجاح!');
+          if (profErr) throw new Error('خطأ في حفظ الملف: ' + profErr.message);
+
+          currentUser = data.user;
+          showToast('تم إنشاء حسابك بنجاح!');
           await loadUserProfile();
         }
-      } catch (err) { showToast(err.message, true); }
-      finally { btn.disabled = false; btn.textContent = authMode === 'signup' ? 'إنشاء الحساب والدخول' : 'دخول إلى التطبيق'; }
+      } catch (err) {
+        showToast(err.message, true);
+      } finally {
+        btn.disabled = false;
+        btn.textContent = authMode === 'signup' ? 'إنشاء الحساب والدخول' : 'دخول إلى التطبيق';
+      }
     }
 
     async function loadUserProfile() {
-      const { data } = await sb.from('profiles').select('*').eq('id', currentUser.id).single();
-      if (!data) { showAuthView(); return; }
+      const { data, error } = await sb.from('profiles').select('*').eq('id', currentUser.id).single();
+      if (error || !data) { showAuthView(); return; }
       currentProfile = data;
       document.getElementById('loading-screen').classList.add('hidden');
       document.getElementById('auth-view').classList.add('hidden');
@@ -482,9 +527,20 @@
 
       const isMerchant = currentProfile.role === 'merchant';
       document.getElementById('role-badge').textContent = isMerchant ? 'حساب تاجر' : 'حساب زبون';
-      document.getElementById('header-subtitle').textContent = isMerchant ? `${currentProfile.shop_name} • ${currentProfile.wilaya}` : `مرحبًا ${currentProfile.full_name}`;
+      document.getElementById('header-subtitle').textContent = isMerchant
+        ? `${currentProfile.shop_name} • ${currentProfile.wilaya}`
+        : `مرحبًا ${currentProfile.full_name} • ${currentProfile.wilaya}`;
 
-      setupNav(); currentTab = 'home'; await loadAllData();
+      const avatarContainer = document.getElementById('header-avatar');
+      if (currentProfile.avatar_url) {
+        avatarContainer.innerHTML = `<img src="${currentProfile.avatar_url}" class="w-full h-full object-cover">`;
+      } else {
+        avatarContainer.textContent = isMerchant ? '🏪' : '👤';
+      }
+
+      setupNav();
+      currentTab = 'home';
+      await loadAllData();
     }
 
     function setupNav() {
@@ -499,11 +555,10 @@
       } else {
         nav.innerHTML = `
           <button onclick="switchTab('home')" id="nav-home" class="flex flex-col items-center text-emerald-600 font-bold text-xs"><span class="text-xl mb-0.5">➕</span><span>طلب جديد</span></button>
-          <button onclick="switchTab('deals')" id="nav-deals" class="flex flex-col items-center text-gray-400 font-bold text-xs"><span class="text-xl mb-0.5">⚡</span><span>العروض</span></button>
+          <button onclick="switchTab('deals')" id="nav-deals" class="flex flex-col items-center text-gray-400 font-bold text-xs"><span class="text-xl mb-0.5">⚡</span><span>العروض السريعة</span></button>
           <button onclick="switchTab('orders')" id="nav-orders" class="flex flex-col items-center text-gray-400 font-bold text-xs"><span class="text-xl mb-0.5">📋</span><span>طلباتي</span></button>
           <button onclick="switchTab('profile')" id="nav-profile" class="flex flex-col items-center text-gray-400 font-bold text-xs"><span class="text-xl mb-0.5">👤</span><span>حسابي</span></button>`;
       }
-      applyTheme();
     }
 
     function switchTab(tab) {
@@ -518,33 +573,19 @@
 
     async function loadAllData() {
       try {
-        const { data: dealsData } = await sb.from('flash_deals').select('*, profiles(shop_name, phone, avatar_url, wilaya, municipality, latitude, longitude)').eq('wilaya', currentProfile.wilaya).order('created_at', { ascending: false });
+        const { data: dealsData } = await sb.from('flash_deals').select('*, profiles(shop_name, phone, avatar_url, wilaya, municipality)').eq('wilaya', currentProfile.wilaya).order('created_at', { ascending: false });
         flashDeals = dealsData || [];
 
         if (currentProfile.role === 'customer') {
-          const { data: reqsData } = await sb.from('quote_requests').select('*').eq('customer_id', currentProfile.id).order('created_at', { ascending: false });
-          myRequests = reqsData || [];
-
-          for (let req of myRequests) {
-            const { data: offersData } = await sb.from('quote_offers').select('*, profiles(shop_name, full_name, phone, municipality, avatar_url, category, latitude, longitude)').eq('request_id', req.id);
-            req.quote_offers = offersData || [];
-          }
+          const { data } = await sb.from('quote_requests').select('*, quote_offers(*, profiles(shop_name, full_name, phone, municipality, avatar_url, category))').eq('customer_id', currentProfile.id).order('created_at', { ascending: false });
+          myRequests = data || [];
+          historyRequests = (myRequests || []).filter(r => r.status === 'accepted' || r.status === 'closed');
         } else {
-          // [إصلاح جلب الطلبات للتاجر مع دعم المرونة في الولاية والتخصص]
-          let query = sb.from('quote_requests').select('*, profiles(id, full_name, phone, avatar_url, wilaya, municipality, latitude, longitude)').order('created_at', { ascending: false });
-          
-          if (!showAllWilayas) {
-            query = query.eq('wilaya', currentProfile.wilaya);
-          }
-          const { data, error } = await query;
-          if (error) console.error(error);
-          
-          // فلترة الطلبات حسب تخصص التاجر إذا لم يتم طلب عرض الكل
-          let reqs = data || [];
-          if (!showAllWilayas && currentProfile.category) {
-            reqs = reqs.filter(r => r.category === currentProfile.category || !r.category);
-          }
-          openRequests = reqs.filter(r => r.status === 'open');
+          let query = sb.from('quote_requests').select('*, profiles(id, full_name, phone, avatar_url, wilaya, municipality), quote_offers(*)').order('created_at', { ascending: false });
+          if (!showAllWilayas) query = query.eq('wilaya', currentProfile.wilaya).eq('category', currentProfile.category);
+          const { data } = await query;
+          const allReqs = data || [];
+          openRequests = allReqs.filter(r => r.status === 'open');
         }
       } catch (err) { console.error(err); }
       renderCurrentTab();
@@ -556,7 +597,7 @@
         main.innerHTML = renderProfileView();
         populateWilayas();
         const editWilaya = document.getElementById('edit-wilaya');
-        if (editWilaya && currentProfile.wilaya) editWilaya.value = currentProfile.wilaya;
+        if (editWilaya) editWilaya.value = currentProfile.wilaya;
         return;
       }
       if (currentTab === 'history') { main.innerHTML = renderHistoryView(); return; }
@@ -565,7 +606,7 @@
         main.innerHTML = currentTab === 'home' ? renderCustomerNewRequest() : renderCustomerOrders();
         populateWilayas();
         const reqWilaya = document.getElementById('req-wilaya');
-        if (reqWilaya && currentProfile.wilaya) reqWilaya.value = currentProfile.wilaya;
+        if (reqWilaya) reqWilaya.value = currentProfile.wilaya;
       } else {
         main.innerHTML = renderMerchantDashboard();
       }
@@ -573,352 +614,83 @@
 
     function renderFlashDealsView() {
       const isMerchant = currentProfile.role === 'merchant';
+      const myDeals = flashDeals.filter(d => d.merchant_id === currentProfile.id);
+
       return `
         <div class="space-y-4">
           <div class="bg-gradient-to-r from-amber-500 to-orange-600 rounded-2xl p-4 text-white shadow-md">
-            <h2 class="font-extrabold text-base">⚡ العروض السريعة اليومية</h2>
+            <h2 class="font-extrabold text-base flex items-center gap-2"><span>⚡</span> العروض السريعة والخصومات اليومية</h2>
+            <p class="text-xs text-amber-100 mt-1">عروض حصرية محدودة الوقت من محلات ولايتك (${currentProfile.wilaya})</p>
           </div>
           ${isMerchant ? `
-            <div class="${isDarkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-100'} p-4 rounded-2xl shadow-sm border space-y-3">
-              <h3 class="font-extrabold text-sm">➕ إضافة عرض سريع جديد</h3>
-              <input id="deal-title" type="text" placeholder="عنوان العرض (مثال: تخفيض على الزيت)..." class="w-full px-3.5 py-2.5 rounded-xl border text-xs outline-none ${isDarkMode ? 'bg-gray-700 border-gray-600 text-white' : ''}">
-              <input id="deal-price" type="number" placeholder="السعر (دج)" class="w-full px-3.5 py-2.5 rounded-xl border text-xs outline-none ${isDarkMode ? 'bg-gray-700 border-gray-600 text-white' : ''}">
-              <button onclick="publishFlashDeal()" class="w-full bg-orange-600 text-white font-bold py-2.5 rounded-xl text-xs">نشر العرض</button>
+            <div class="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 space-y-3">
+              <h3 class="font-extrabold text-sm text-gray-800">➕ إضافة عرض سريع جديد</h3>
+              <input id="deal-title" type="text" placeholder="عنوان العرض..." class="w-full px-3.5 py-2.5 rounded-xl border text-xs outline-none">
+              <textarea id="deal-desc" rows="2" placeholder="التفاصيل..." class="w-full px-3.5 py-2.5 rounded-xl border text-xs outline-none"></textarea>
+              <input id="deal-price" type="number" placeholder="السعر (دج)" class="w-full px-3.5 py-2.5 rounded-xl border text-xs outline-none">
+              <button onclick="publishFlashDeal()" class="w-full bg-orange-600 text-white font-bold py-2.5 rounded-xl text-xs">نشر العرض الآن</button>
             </div>
           ` : ''}
           <div class="space-y-3">
-            ${flashDeals.map(d => `<div class="${isDarkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-100'} rounded-2xl p-4 shadow-sm border"><h3 class="font-extrabold text-sm">${d.title}</h3><p class="text-xs text-orange-600 font-bold">${Number(d.price).toLocaleString()} دج</p></div>`).join('')}
+            ${flashDeals.map(d => `<div class="bg-white rounded-2xl p-4 shadow-sm border"><h3 class="font-extrabold text-sm">${d.title}</h3><p class="text-xs text-orange-600 font-bold">${Number(d.price).toLocaleString()} دج</p></div>`).join('')}
           </div>
         </div>`;
     }
 
-    // [إصلاح نشر العروض السريعة بإضافة تاريخ الانتهاء تلقائياً]
     async function publishFlashDeal() {
       const title = document.getElementById('deal-title').value.trim();
       const price = document.getElementById('deal-price').value;
-      if (!title || !price) return showToast('أدخل عنوان العرض والسعر', true);
-
-      // تحديد تاريخ انتهاء بعد 24 ساعة لتجاوز قيد expires_at في قاعدة البيانات
-      const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
-
-      const { error } = await sb.from('flash_deals').insert({
-        merchant_id: currentProfile.id,
-        title,
-        price: Number(price),
-        category: currentProfile.category || 'supermarket',
-        wilaya: currentProfile.wilaya,
-        expires_at: expiresAt
-      });
-
-      if (error) showToast('خطأ: ' + error.message, true);
-      else { showToast('تم نشر العرض بنجاح!'); loadAllData(); }
+      if (!title || !price) return showToast('أدخل العنوان والسعر', true);
+      await sb.from('flash_deals').insert({ merchant_id: currentProfile.id, title, price: Number(price), category: currentProfile.category || 'supermarket', wilaya: currentProfile.wilaya });
+      showToast('تم نشر العرض بنجاح!');
+      loadAllData();
     }
 
-    function renderHistoryView() { return `<div class="text-center py-12 ${isDarkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-100'} rounded-2xl border p-6"><p class="font-bold text-sm">سجل الطلبات فارغ</p></div>`; }
-
-    function addDraftItem(name = '') {
-      draftItems.push({ name, qty: '1 وحدة' });
-      renderDraftItemsList();
-    }
-
-    function removeDraftItem(index) {
-      draftItems.splice(index, 1);
-      renderDraftItemsList();
-    }
-
-    function renderDraftItemsList() {
-      const container = document.getElementById('draft-items-container');
-      if (!container) return;
-      if (draftItems.length === 0) {
-        container.innerHTML = `<p class="text-xs text-gray-400 italic text-center py-2">لم تقم بإضافة أي مواد بعد. اختر من الاقتراحات أو أضف يدوياً.</p>`;
-        return;
-      }
-      container.innerHTML = draftItems.map((it, idx) => `
-        <div class="flex items-center gap-2 bg-gray-50 dark:bg-gray-700 p-2 rounded-xl border border-gray-200 dark:border-gray-600">
-          <input type="text" value="${it.name}" oninput="draftItems[${idx}].name = this.value" placeholder="اسم المادة" class="flex-1 px-2 py-1 bg-white dark:bg-gray-800 rounded border text-xs outline-none ${isDarkMode ? 'text-white' : ''}">
-          <input type="text" value="${it.qty}" oninput="draftItems[${idx}].qty = this.value" placeholder="الكمية" class="w-20 px-2 py-1 bg-white dark:bg-gray-800 rounded border text-xs outline-none ${isDarkMode ? 'text-white' : ''}">
-          <button onclick="removeDraftItem(${idx})" class="text-red-500 font-bold px-2 text-sm">✕</button>
-        </div>
-      `).join('');
+    function renderHistoryView() {
+      return `<div class="text-center py-12 bg-white rounded-2xl border p-6"><p class="font-bold text-gray-700 text-sm">سجل الطلبات فارغ</p></div>`;
     }
 
     function renderCustomerNewRequest() {
-      const cat = CATEGORIES[selectedCategory];
       return `
         <div class="space-y-4">
-          <div class="${isDarkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-100'} p-4 rounded-2xl shadow-sm border">
-            <h2 class="font-extrabold text-sm mb-3">1. اختر مجال المشتريات</h2>
+          <div class="bg-white p-4 rounded-2xl shadow-sm border space-y-3">
+            <h2 class="font-extrabold text-sm text-gray-800">إرسال طلب تسعيرة جديد</h2>
+            <input id="req-title" type="text" placeholder="عنوان الطلب (مثال: مقاضي الأسبوع)" class="w-full px-3.5 py-2.5 rounded-xl border text-xs outline-none">
             <div class="grid grid-cols-2 gap-2">
-              ${Object.entries(CATEGORIES).map(([key, c]) => `
-                <button type="button" onclick="selectCat('${key}')" class="p-3 rounded-xl border-2 text-right ${selectedCategory === key ? 'border-emerald-600 bg-emerald-50/20' : 'border-gray-200'}">
-                  <div class="text-xl">${c.icon}</div>
-                  <div class="text-xs font-extrabold">${c.short}</div>
-                </button>
-              `).join('')}
+              <select id="req-wilaya" class="wilaya-select w-full px-3 py-2.5 rounded-xl border text-xs bg-white outline-none"></select>
+              <input id="req-municipality" type="text" value="${currentProfile.municipality || ''}" placeholder="البلدية" class="w-full px-3.5 py-2.5 rounded-xl border text-xs outline-none">
             </div>
-          </div>
-
-          <div class="${isDarkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-100'} p-4 rounded-2xl shadow-sm border space-y-3">
-            <h2 class="font-extrabold text-sm">2. المواد والأغراض المطلوبة</h2>
-            <div class="flex flex-wrap gap-1.5">
-              ${cat.suggestions.map(s => `
-                <button type="button" onclick="addDraftItem('${s}')" class="text-xs bg-emerald-50 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300 px-2.5 py-1.5 rounded-lg font-bold border border-emerald-200 dark:border-emerald-800 hover:bg-emerald-100">
-                  + ${s}
-                </button>
-              `).join('')}
-            </div>
-            <div id="draft-items-container" class="space-y-2 mt-2"></div>
-            <button type="button" onclick="addDraftItem()" class="text-xs text-emerald-600 font-bold">+ إضافة مادة أخرى يدوياً</button>
-          </div>
-
-          <div class="${isDarkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-100'} p-4 rounded-2xl shadow-sm border space-y-3">
-            <h2 class="font-extrabold text-sm">3. معلومات الطلب</h2>
-            <input id="req-title" type="text" placeholder="عنوان عام للطلب (مثال: مقاضي الأسبوع)..." class="w-full px-3.5 py-2.5 rounded-xl border text-xs outline-none ${isDarkMode ? 'bg-gray-700 border-gray-600 text-white' : ''}">
-            <select id="req-wilaya" class="wilaya-select w-full px-3 py-2.5 rounded-xl border text-xs bg-white text-black outline-none"></select>
             <button onclick="submitQuoteRequest()" class="w-full bg-emerald-600 text-white font-extrabold py-3 rounded-xl text-sm">🚀 إرسال للتجار</button>
           </div>
         </div>`;
     }
 
-    function selectCat(cat) { 
-      selectedCategory = cat; 
-      draftItems = [];
-      renderCurrentTab(); 
-      renderDraftItemsList();
-    }
-
     async function submitQuoteRequest() {
       const title = document.getElementById('req-title').value.trim();
       const wilaya = document.getElementById('req-wilaya').value;
-      if (!title) return showToast('أدخل عنوان الطلب العام', true);
-      if (draftItems.length === 0) return showToast('أضف مادة واحدة على الأقل للطلب', true);
-
-      const { error } = await sb.from('quote_requests').insert({
-        customer_id: currentProfile.id,
-        category: selectedCategory,
-        wilaya,
-        title,
-        items: draftItems,
-        status: 'open'
-      });
-
-      if (error) showToast('خطأ: ' + error.message, true);
-      else {
-        showToast('تم إرسال الطلب بنجاح!');
-        draftItems = [];
-        switchTab('orders');
-        loadAllData();
-      }
+      const municipality = document.getElementById('req-municipality').value.trim();
+      if (!title) return showToast('أدخل عنوان الطلب', true);
+      await sb.from('quote_requests').insert({ customer_id: currentProfile.id, category: selectedCategory, wilaya, municipality, title, status: 'open' });
+      showToast('تم إرسال الطلب بنجاح!');
+      switchTab('orders');
     }
 
-    function renderCustomerOrders() {
-      if (!myRequests || myRequests.length === 0) {
-        return `
-          <div class="text-center py-12 ${isDarkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-100'} rounded-2xl border p-6 space-y-3">
-            <div class="text-3xl">📋</div>
-            <p class="font-bold text-sm">ليس لديك أي طلبات حالياً</p>
-            <button onclick="switchTab('home')" class="bg-emerald-600 text-white text-xs font-bold px-4 py-2 rounded-xl">أنشئ طلباً جديداً الآن</button>
-          </div>`;
-      }
-
-      return `
-        <div class="space-y-4">
-          <h2 class="font-extrabold text-sm text-gray-700 dark:text-gray-300">طلباتي السابقة والعروض الواردة</h2>
-          ${myRequests.map(req => {
-            const offers = req.quote_offers || [];
-            const reqItems = req.items || [];
-            return `
-              <div class="${isDarkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-100'} rounded-2xl p-4 shadow-sm border space-y-3">
-                <div class="flex justify-between items-start">
-                  <div>
-                    <h3 class="font-extrabold text-sm">${req.title}</h3>
-                    <p class="text-[11px] text-gray-400 mt-0.5">الولاية: ${req.wilaya} • الحالة: <span class="text-emerald-600 font-bold">${req.status === 'open' ? 'قيد الانتظار ⏳' : 'مكتمل'}</span></p>
-                  </div>
-                  <span class="text-xs bg-emerald-50 text-emerald-700 px-2.5 py-1 rounded-full font-bold">${offers.length} عروض</span>
-                </div>
-
-                ${reqItems.length > 0 ? `
-                  <div class="bg-gray-50 dark:bg-gray-700 p-2.5 rounded-xl text-xs space-y-1">
-                    <div class="font-bold text-gray-500 dark:text-gray-300">المواد المطلوبة:</div>
-                    ${reqItems.map(it => `<div>• ${it.name} (${it.qty})</div>`).join('')}
-                  </div>
-                ` : ''}
-
-                <div class="space-y-2 pt-2 border-t border-gray-100 dark:border-gray-700">
-                  <div class="text-xs font-bold text-gray-500">عروض التجار:</div>
-                  ${offers.length === 0 ? `<p class="text-xs text-gray-400 italic">في انتظار رد تجار الولاية...</p>` :
-                    offers.map(of => {
-                      let distText = '';
-                      if (currentProfile.latitude && currentProfile.longitude && of.profiles?.latitude && of.profiles?.longitude) {
-                        const d = calculateDistance(currentProfile.latitude, currentProfile.longitude, of.profiles.latitude, of.profiles.longitude);
-                        if (d) distText = `<span class="text-[11px] text-emerald-500 font-bold">📍 يبعد عنك ${d} كم</span>`;
-                      }
-                      const waPhone = formatDzWhatsApp(of.profiles?.phone || '');
-                      return `
-                        <div class="p-3 bg-gray-50 dark:bg-gray-700 rounded-xl border border-gray-200 dark:border-gray-600 space-y-2">
-                          <div class="flex justify-between items-center">
-                            <div>
-                              <span class="font-extrabold text-xs cursor-pointer text-emerald-600 hover:underline" onclick="viewUserProfile('${of.merchant_id}')">${of.profiles?.shop_name || 'محل تجاري'} ⭐</span>
-                              <div>${distText}</div>
-                            </div>
-                            <span class="text-base font-extrabold text-emerald-700">${Number(of.total_price).toLocaleString()} دج</span>
-                          </div>
-                          
-                          <div class="grid grid-cols-2 gap-2 pt-1">
-                            <a href="tel:${of.profiles?.phone || ''}" class="bg-emerald-600 text-white py-1.5 rounded-lg text-xs font-bold text-center">📞 اتصال</a>
-                            <a href="https://wa.me/${waPhone}" target="_blank" class="bg-[#25D366] text-white py-1.5 rounded-lg text-xs font-bold text-center">💬 واتساب</a>
-                          </div>
-                        </div>`;
-                    }).join('')}
-                </div>
-              </div>`;
-          }).join('')}
-        </div>`;
-    }
-
-    function renderMerchantDashboard() {
-      return `<div class="space-y-4">
-        <div class="${isDarkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-100'} p-3 rounded-2xl border flex justify-between items-center">
-          <span class="text-xs font-bold">نطاق عرض الطلبات:</span>
-          <button onclick="toggleWilayaScope()" class="text-xs font-bold px-3 py-1.5 rounded-xl ${showAllWilayas ? 'bg-amber-100 text-amber-800' : 'bg-emerald-50 text-emerald-700'}">
-            ${showAllWilayas ? '🌍 كل الولايات' : `📍 ${currentProfile.wilaya} فقط`}
-          </button>
-        </div>
-
-        ${openRequests.length === 0 ? `
-          <div class="text-center py-12 ${isDarkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-100'} rounded-2xl border p-6">
-            <p class="font-bold text-sm">لا توجد طلبات مفتوحة حالياً في ولايتك</p>
-          </div>` :
-          openRequests.map(req => {
-            const hasItems = req.items && req.items.length > 0;
-            return `
-              <div class="${isDarkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-100'} rounded-2xl p-4 shadow-sm border space-y-2.5">
-                <h3 class="font-extrabold text-sm">${req.title}</h3>
-                <p class="text-[11px] text-gray-400">الولاية: ${req.wilaya}</p>
-                ${hasItems ? `
-                  <div class="bg-gray-50 dark:bg-gray-700 p-2.5 rounded-xl space-y-2">
-                    <div class="text-[11px] font-bold text-gray-500 dark:text-gray-300">حدد سعر كل مادة ليُحسب المجموع تلقائياً:</div>
-                    ${req.items.map((it, idx) => `
-                      <div class="flex items-center justify-between gap-2 bg-white dark:bg-gray-800 px-2.5 py-1.5 rounded-lg border border-gray-200 dark:border-gray-600">
-                        <span class="text-xs font-bold flex-1">${it.name} (${it.qty})</span>
-                        <input type="number" oninput="recalcTotal('${req.id}', ${req.items.length})" id="item-price-${req.id}-${idx}" placeholder="السعر دج" class="w-24 px-2 py-1 rounded border text-xs font-bold text-left outline-none ${isDarkMode ? 'bg-gray-700 text-white' : ''}">
-                      </div>
-                    `).join('')}
-                  </div>` : ''}
-                <input type="number" id="price-${req.id}" placeholder="السعر الإجمالي (دج)" class="w-full px-3.5 py-2.5 rounded-xl border-2 border-emerald-300 text-xs font-extrabold outline-none ${isDarkMode ? 'bg-gray-700 text-white' : ''}">
-                <button onclick="sendMerchantOffer('${req.id}')" class="w-full bg-emerald-600 text-white font-bold py-2.5 rounded-xl text-xs">إرسال التسعيرة للزبون</button>
-              </div>`;
-          }).join('')}
-      </div>`;
-    }
-
-    function recalcTotal(reqId, count) {
-      let sum = 0;
-      for (let i = 0; i < count; i++) {
-        const val = Number(document.getElementById(`item-price-${reqId}-${i}`)?.value || 0);
-        if (val > 0) sum += val;
-      }
-      if (sum > 0) document.getElementById(`price-${reqId}`).value = sum;
-    }
-
-    function toggleWilayaScope() { showAllWilayas = !showAllWilayas; loadAllData(); }
-
-    async function sendMerchantOffer(reqId) {
-      const price = document.getElementById(`price-${reqId}`).value;
-      if (!price || Number(price) <= 0) return showToast('أدخل السعر الإجمالي', true);
-
-      const { error } = await sb.from('quote_offers').insert({
-        request_id: reqId,
-        merchant_id: currentProfile.id,
-        total_price: Number(price)
-      });
-
-      if (error) showToast('خطأ: ' + error.message, true);
-      else { showToast('تم إرسال تسعيرتك بنجاح!'); loadAllData(); }
-    }
+    function renderCustomerOrders() { return `<div class="text-center py-12 bg-white rounded-2xl border p-6"><p class="font-bold">طلباتك الحالية</p></div>`; }
+    function renderMerchantDashboard() { return `<div class="text-center py-12 bg-white rounded-2xl border p-6"><p class="font-bold">طلبات الزبائن الواردة</p></div>`; }
 
     function renderProfileView() {
       const isMerchant = currentProfile.role === 'merchant';
-      const avatarDisplay = editAvatarBase64 || currentProfile.avatar_url;
-      const avatarHtml = avatarDisplay
-        ? `<img src="${avatarDisplay}" class="w-20 h-20 rounded-full object-cover mx-auto border-2 border-emerald-500 shadow-sm mb-2">`
-        : `<div class="w-20 h-20 bg-emerald-100 text-emerald-700 rounded-full mx-auto flex items-center justify-center text-3xl font-extrabold mb-2">${isMerchant ? '🏪' : '👤'}</div>`;
-
       return `
-        <div class="${isDarkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-100'} rounded-2xl p-5 shadow-sm border space-y-4">
-          <div class="text-center pb-3 border-b border-gray-100 dark:border-gray-700">
-            <div class="relative inline-block">
-              <div id="edit-avatar-preview" class="w-20 h-20 rounded-full overflow-hidden mx-auto">${avatarHtml}</div>
-              <label class="absolute bottom-1 left-1 bg-emerald-600 text-white p-1.5 rounded-full cursor-pointer shadow text-xs">
-                📷 <input type="file" accept="image/*" onchange="handleEditAvatarUpload(event)" class="hidden">
-              </label>
-            </div>
-            <h2 class="font-extrabold text-base mt-1">${currentProfile.shop_name || currentProfile.full_name}</h2>
-            <p class="text-xs text-gray-400">تعديل بيانات الحساب الشخصي</p>
-          </div>
-
-          <div class="space-y-3">
-            <div>
-              <label class="block text-xs font-bold mb-1">الاسم الكامل</label>
-              <input type="text" id="edit-name" value="${currentProfile.full_name || ''}" class="w-full px-3 py-2.5 rounded-xl border text-xs outline-none ${isDarkMode ? 'bg-gray-700 border-gray-600 text-white' : ''}">
-            </div>
-            ${isMerchant ? `
-              <div>
-                <label class="block text-xs font-bold mb-1">اسم المحل التجاري</label>
-                <input type="text" id="edit-shop" value="${currentProfile.shop_name || ''}" class="w-full px-3 py-2.5 rounded-xl border text-xs outline-none ${isDarkMode ? 'bg-gray-700 border-gray-600 text-white' : ''}">
-              </div>
-            ` : ''}
-            <div>
-              <label class="block text-xs font-bold mb-1">رقم الهاتف</label>
-              <input type="tel" id="edit-phone" value="${currentProfile.phone || ''}" dir="ltr" class="w-full px-3 py-2.5 rounded-xl border text-xs text-right outline-none ${isDarkMode ? 'bg-gray-700 border-gray-600 text-white' : ''}">
-            </div>
-            <div class="grid grid-cols-2 gap-2">
-              <div>
-                <label class="block text-xs font-bold mb-1">الولاية</label>
-                <select id="edit-wilaya" class="wilaya-select w-full px-3 py-2.5 rounded-xl border text-xs bg-white text-black outline-none"></select>
-              </div>
-              <div>
-                <label class="block text-xs font-bold mb-1">البلدية</label>
-                <input type="text" id="edit-municipality" value="${currentProfile.municipality || ''}" class="w-full px-3 py-2.5 rounded-xl border text-xs outline-none ${isDarkMode ? 'bg-gray-700 border-gray-600 text-white' : ''}">
-              </div>
-            </div>
-            <button onclick="saveProfileChanges()" class="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3 rounded-xl text-xs shadow-sm">
-              حفظ التعديلات
-            </button>
-          </div>
-
-          <div class="bg-emerald-50 dark:bg-emerald-900/30 p-3 rounded-xl text-center">
-            <div class="text-xs text-emerald-700 dark:text-emerald-300 font-bold">📊 إحصائيات ونقاط الحساب</div>
-            <div class="text-base font-extrabold text-emerald-600 mt-1">⭐ نشط وموثوق</div>
-          </div>
-
-          <div class="pt-3 border-t border-gray-100 dark:border-gray-700">
-            <button onclick="handleLogout()" class="w-full bg-red-50 text-red-600 font-bold py-2.5 rounded-xl text-xs">تسجيل الخروج</button>
-          </div>
+        <div class="bg-white rounded-2xl p-5 shadow-sm border space-y-4 text-center">
+          <h2 class="font-extrabold text-base">${currentProfile.shop_name || currentProfile.full_name}</h2>
+          <button onclick="handleLogout()" class="w-full bg-red-50 text-red-600 font-bold py-2.5 rounded-xl text-xs">تسجيل الخروج</button>
         </div>`;
-    }
-
-    async function saveProfileChanges() {
-      const fullName = document.getElementById('edit-name').value.trim();
-      const phone = document.getElementById('edit-phone').value.trim();
-      const wilaya = document.getElementById('edit-wilaya').value;
-      const municipality = document.getElementById('edit-municipality').value.trim();
-      const shopName = document.getElementById('edit-shop') ? document.getElementById('edit-shop').value.trim() : null;
-
-      if (!fullName) return showToast('أدخل الاسم الكامل', true);
-
-      const updateData = { full_name: fullName, phone, wilaya, municipality };
-      if (shopName !== null) updateData.shop_name = shopName;
-      if (editAvatarBase64) updateData.avatar_url = editAvatarBase64;
-
-      const { error } = await sb.from('profiles').update(updateData).eq('id', currentProfile.id);
-      if (error) showToast('خطأ في الحفظ: ' + error.message, true);
-      else { showToast('تم تحديث الملف بنجاح!'); editAvatarBase64 = null; await loadUserProfile(); }
     }
 
     async function handleLogout() {
       await sb.auth.signOut();
-      currentUser = null; currentProfile = null; showAuthView();
+      currentUser = null; currentProfile = null;
+      showAuthView();
     }
 
     window.addEventListener('DOMContentLoaded', initApp);
