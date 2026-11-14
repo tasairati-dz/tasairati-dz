@@ -1929,5 +1929,14 @@
     📥 صفحة تحميل وتثبيت التطبيق
   </a>
 </div>
+<script src="https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.page.js" defer></script>
+<script>
+  window.OneSignalDeferred = window.OneSignalDeferred || [];
+  window.OneSignalDeferred.push(async function(OneSignal) {
+    await OneSignal.init({
+      appId: "598d034c-3d51-4e39-bf11-ae84a66dc028",
+    });
+  });
+</script>
 </body>
 </html>
