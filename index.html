@@ -706,6 +706,7 @@
             allReqs = allReqs.filter(r => r.category === currentProfile.category || !r.category);
           }
 
+          // الطلبات العادية أو طلبات العروض السريعة الموجهة للتاجر
           openRequests = allReqs.filter(r => r.status === 'open');
           
           historyRequests = allReqs.filter(r => {
@@ -1066,7 +1067,7 @@
       if (!activeDealForModal) return;
       const tierSelect = document.getElementById('modal-deal-tier');
       const selectedOption = tierSelect.options[tierSelect.selectedIndex];
-      const tierLabel = selectedOption ? selectedOption.textContent : 'وحدة 1';
+      const tierLabel = selectedOption ? selectedOption.textContent.split(' - ')[0] : 'وحدة 1';
       const basePrice = Number(selectedOption ? selectedOption.getAttribute('data-price') : 0);
       
       const deliveryType = document.getElementById('deal-order-delivery').value;
@@ -1076,10 +1077,11 @@
 
       if (!phone) return showToast('يرجى كتابة رقم الهاتف', true);
 
+      // حفظ الطلب بحيث يظهر في قسم الطلبات المفتوحة للتاجر وبنفس بيانات العرض السريع
       const { error } = await sb.from('quote_requests').insert({
         customer_id: currentProfile.id,
         category: activeDealForModal.category || 'supermarket',
-        wilaya: currentProfile.wilaya,
+        wilaya: activeDealForModal.profiles?.wilaya || currentProfile.wilaya,
         municipality: currentProfile.municipality || 'وسط المدينة',
         title: `[عرض سريع] ${activeDealForModal.title} (${tierLabel})`,
         items: [{ name: activeDealForModal.title, qty: tierLabel, price: basePrice }],
@@ -1092,7 +1094,21 @@
       if (error) {
         showToast('خطأ في إرسال الطلب: ' + error.message, true);
       } else {
-        showToast('✅ تم إرسال طلب العرض السريع للتاجر بنجاح!');
+        // إرسال العرض المالي تلقائياً للتاجر لكي يظهر مباشرة في طلبات العروض السريعة المؤكدة/المفتوحة
+        const { data: reqData } = await sb.from('quote_requests').select('id').eq('customer_id', currentProfile.id).order('created_at', { ascending: false }).limit(1);
+        if (reqData && reqData.length > 0) {
+          await sb.from('quote_offers').insert({
+            request_id: reqData[0].id,
+            merchant_id: activeDealForModal.merchant_id,
+            total_price: totalPrice,
+            delivery_fee: deliveryFee,
+            priced_items: [{ name: activeDealForModal.title, qty: tierLabel, price: basePrice }],
+            status: 'accepted'
+          });
+          await sb.from('quote_requests').update({ status: 'accepted' }).eq('id', reqData[0].id);
+        }
+
+        showToast('✅ تم إرسال طلب العرض السريع وتأكيده للتاجر بنجاح!');
         closeDealOrderModal();
         switchTab('orders');
       }
