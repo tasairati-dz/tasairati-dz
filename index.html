@@ -1938,5 +1938,147 @@
     });
   });
 </script>
+<!-- حاوية إدخال رقم الهاتف وكود التحقق -->
+<div style="max-width: 400px; margin: 20px auto; padding: 20px; background: #f9f9f9; border-radius: 10px; font-family: Arial;">
+    <h3>تسجيل الدخول برقم الهاتف (SMS OTP)</h3>
+    
+    <!-- خطوة 1: إدخال رقم الهاتف -->
+    <div id="phone-section">
+        <input type="text" id="phone-number" placeholder="+213 555..." style="width: 100%; padding: 10px; margin-bottom: 10px;" />
+        <button id="send-otp-btn" style="width: 100%; padding: 10px; background: #198754; color: #fff; border: none; border-radius: 5px;">إرسال كود التحقق</button>
+    </div>
+
+    <!-- خطوة 2: إدخال الكود وتأكيده -->
+    <div id="otp-section" style="display: none; margin-top: 15px;">
+        <input type="text" id="otp-code" placeholder="أدخل الكود المكون من 6 أرقام" style="width: 100%; padding: 10px; margin-bottom: 10px;" />
+        <button id="verify-otp-btn" style="width: 100%; padding: 10px; background: #0d6efd; color: #fff; border: none; border-radius: 5px;">تأكيد الكود</button>
+    </div>
+
+    <!-- عنصر مخفي لإنشاء reCAPTCHA المطلوبة أمنياً من فايربيس -->
+    <div id="recaptcha-container"></div>
+</div>
+
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/13.3.0/firebase-app.js";
+  import { getAuth, RecaptchaVerifier, signInWithPhoneNumber } from "https://www.gstatic.com/firebasejs/13.3.0/firebase-auth.js";
+
+  const firebaseConfig = {
+    apiKey: "AIzaSyAMuos7J30z2mof6eMnxH1O3bZ06wNcdEE",
+    authDomain: "tasairati-dz.firebaseapp.com",
+    projectId: "tasairati-dz",
+    storageBucket: "tasairati-dz.firebasestorage.app",
+    messagingSenderId: "714164189694",
+    appId: "1:714164189694:web:ddbfd933c92d5b6a53a8af",
+    measurementId: "G-3KN73BPN7B"
+  };
+
+  const app = initializeApp(firebaseConfig);
+  const auth = getAuth(app);
+
+  // إعداد حماية reCAPTCHA
+  window.recaptchaVerifier = new RecaptchaVerifier(auth, 'recaptcha-container', {
+    'size': 'invisible'
+  });
+
+  // حدث ضغط زر إرسال الكود
+  document.getElementById('send-otp-btn').addEventListener('click', () => {
+    const phoneNumber = document.getElementById('phone-number').value;
+    const appVerifier = window.recaptchaVerifier;
+
+    signInWithPhoneNumber(auth, phoneNumber, appVerifier)
+      .then((confirmationResult) => {
+        window.confirmationResult = confirmationResult;
+        alert("تم إرسال الرمز بنجاح إلى هاتفك!");
+        document.getElementById('phone-section').style.display = 'none';
+        document.getElementById('otp-section').style.display = 'block';
+      }).catch((error) => {
+        console.error("فشل إرسال الرمز", error);
+        alert("حدث خطأ، تأكد من كتابة رقم الهاتف بالصيغة الدولية (مثلاً: +213...)");
+      });
+  });
+
+  // حدث ضغط زر تأكيد الكود
+  document.getElementById('verify-otp-btn').addEventListener('click', () => {
+    const code = document.getElementById('otp-code').value;
+    window.confirmationResult.confirm(code).then((result) => {
+      const user = result.user;
+      alert("تم تسجيل الدخول بنجاح! مرحباً بك يا أيمـن.");
+      console.log("User signed in successfully:", user);
+    }).catch((error) => {
+      alert("كود التحقق غير صحيح، يرجى المحاولة مرة أخرى.");
+    });
+  });
+</script>
+<!-- حاوية إدخال رقم الهاتف وكود التحقق -->
+<div style="max-width: 400px; margin: 20px auto; padding: 20px; background: #f9f9f9; border-radius: 10px; font-family: Arial;">
+    <h3>تسجيل الدخول برقم الهاتف (SMS OTP)</h3>
+    
+    <!-- خطوة 1: إدخال رقم الهاتف -->
+    <div id="phone-section">
+        <input type="text" id="phone-number" placeholder="+213 555..." style="width: 100%; padding: 10px; margin-bottom: 10px;" />
+        <button id="send-otp-btn" style="width: 100%; padding: 10px; background: #198754; color: #fff; border: none; border-radius: 5px;">إرسال كود التحقق</button>
+    </div>
+
+    <!-- خطوة 2: إدخال الكود وتأكيده -->
+    <div id="otp-section" style="display: none; margin-top: 15px;">
+        <input type="text" id="otp-code" placeholder="أدخل الكود المكون من 6 أرقام" style="width: 100%; padding: 10px; margin-bottom: 10px;" />
+        <button id="verify-otp-btn" style="width: 100%; padding: 10px; background: #0d6efd; color: #fff; border: none; border-radius: 5px;">تأكيد الكود</button>
+    </div>
+
+    <!-- عنصر مخفي لإنشاء reCAPTCHA المطلوبة أمنياً من فايربيس -->
+    <div id="recaptcha-container"></div>
+</div>
+
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/13.3.0/firebase-app.js";
+  import { getAuth, RecaptchaVerifier, signInWithPhoneNumber } from "https://www.gstatic.com/firebasejs/13.3.0/firebase-auth.js";
+
+  const firebaseConfig = {
+    apiKey: "AIzaSyAMuos7J30z2mof6eMnxH1O3bZ06wNcdEE",
+    authDomain: "tasairati-dz.firebaseapp.com",
+    projectId: "tasairati-dz",
+    storageBucket: "tasairati-dz.firebasestorage.app",
+    messagingSenderId: "714164189694",
+    appId: "1:714164189694:web:ddbfd933c92d5b6a53a8af",
+    measurementId: "G-3KN73BPN7B"
+  };
+
+  const app = initializeApp(firebaseConfig);
+  const auth = getAuth(app);
+
+  // إعداد حماية reCAPTCHA
+  window.recaptchaVerifier = new RecaptchaVerifier(auth, 'recaptcha-container', {
+    'size': 'invisible'
+  });
+
+  // حدث ضغط زر إرسال الكود
+  document.getElementById('send-otp-btn').addEventListener('click', () => {
+    const phoneNumber = document.getElementById('phone-number').value;
+    const appVerifier = window.recaptchaVerifier;
+
+    signInWithPhoneNumber(auth, phoneNumber, appVerifier)
+      .then((confirmationResult) => {
+        window.confirmationResult = confirmationResult;
+        alert("تم إرسال الرمز بنجاح إلى هاتفك!");
+        document.getElementById('phone-section').style.display = 'none';
+        document.getElementById('otp-section').style.display = 'block';
+      }).catch((error) => {
+        console.error("فشل إرسال الرمز", error);
+        alert("حدث خطأ، تأكد من كتابة رقم الهاتف بالصيغة الدولية (مثلاً: +213...)");
+      });
+  });
+
+  // حدث ضغط زر تأكيد الكود
+  document.getElementById('verify-otp-btn').addEventListener('click', () => {
+    const code = document.getElementById('otp-code').value;
+    window.confirmationResult.confirm(code).then((result) => {
+      const user = result.user;
+      alert("تم تسجيل الدخول بنجاح! مرحباً بك يا أيمـن.");
+      console.log("User signed in successfully:", user);
+    }).catch((error) => {
+      alert("كود التحقق غير صحيح، يرجى المحاولة مرة أخرى.");
+    });
+  });
+</script>
 </body>
 </html>
