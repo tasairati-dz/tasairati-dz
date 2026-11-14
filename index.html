@@ -639,7 +639,13 @@
       let allFound = true;
 
       for (let item of req.items) {
-        const foundMatch = inv.find(i => item.name.toLowerCase().includes(i.item_name.toLowerCase()) || i.item_name.toLowerCase().includes(item.name.toLowerCase()));
+        // مطابقة ذكية مرنة (تحقق جزئي ليقبل أي تقارب في اسم المادة)
+        const foundMatch = inv.find(i => 
+          item.name.toLowerCase().includes(i.item_name.toLowerCase()) || 
+          i.item_name.toLowerCase().includes(item.name.toLowerCase()) ||
+          item.name.toLowerCase().split(' ').some(w => w.length > 2 && i.item_name.toLowerCase().includes(w))
+        );
+        
         if (foundMatch) {
           let qtyNum = parseFloat(item.qty) || 1;
           let itemTotal = foundMatch.unit_price * qtyNum;
@@ -1031,8 +1037,7 @@
                     </div>
                     <button onclick="deleteFlashDeal('${d.id}')" class="bg-red-50 text-red-600 px-3.5 py-2 rounded-xl text-xs font-bold shadow">حذف العرض</button>
                   </div>
-                `).join('')
-              }
+                `).join('')}
             </div>
           ` : `
             <div class="space-y-3">
@@ -1123,23 +1128,17 @@
       });
 
       if (error) {
-        await sb.from('flash_deals').insert({
-          merchant_id: currentProfile.id,
-          title,
-          description,
-          tiers: validTiers,
-          image_url: dealImageBase64,
-          category: currentProfile.category || 'supermarket',
-          wilaya: currentProfile.wilaya,
-          duration_hours: hoursDuration,
-          expires_at: expiresAt.toISOString()
-        });
+        showToast('خطأ في نشر العرض: ' + error.message, true);
+        return;
       }
 
       showToast('⚡ تم نشر العرض السريع بنجاح!');
       dealImageBase64 = null;
       dealTiers = [{ label: '1 وحدة', price: '' }];
+      document.getElementById('deal-title').value = '';
+      document.getElementById('deal-desc').value = '';
       await loadAllData();
+      switchTab('deals');
     }
 
     async function deleteFlashDeal(dealId) {
@@ -1582,7 +1581,7 @@
 
     async function sendMerchantOffer(reqId) {
       const price = document.getElementById(`price-${reqId}`).value;
-      const deliveryFee = document.getElementById(`fee-${reqId}`).value || 0;
+      const deliveryFee = document.getElementById(`fee-${reqId}`)?.value || 0;
       if (!price || Number(price) <= 0) return showToast('أدخل السعر الإجمالي', true);
 
       const reqObj = openRequests.find(r => r.id === reqId);
