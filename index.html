@@ -769,7 +769,10 @@
         <div class="space-y-4">
           <div class="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 space-y-3">
             <h2 class="font-extrabold text-sm text-gray-800">🔍 بحث عن المحلات (ماركت بلاي المحلات)</h2>
-            <input type="text" value="${merchantSearchQuery}" oninput="merchantSearchQuery = this.value; renderMerchantsSearchView()" placeholder="ابحث باسم المحل..." class="w-full px-3.5 py-2.5 rounded-xl border border-gray-200 text-xs outline-none">
+            <div class="flex gap-2">
+              <input type="text" id="merchant-search-input" value="${merchantSearchQuery}" placeholder="ابحث باسم المحل..." class="flex-1 px-3.5 py-2.5 rounded-xl border border-gray-200 text-xs outline-none">
+              <button onclick="merchantSearchQuery = document.getElementById('merchant-search-input').value; renderMerchantsSearchView()" class="bg-emerald-600 text-white px-4 py-2.5 rounded-xl text-xs font-bold shadow">بحث 🔍</button>
+            </div>
             
             <div class="grid grid-cols-2 gap-2">
               <div>
@@ -903,7 +906,7 @@
                         <div class="text-xs font-extrabold text-orange-600 mt-0.5">مدة العرض: ${d.duration_hours || 24} ساعة • ${formatTimeAgo(d.created_at)}</div>
                       </div>
                     </div>
-                    <button onclick="deleteFlashDeal('${d.id}')" class="bg-red-50 text-red-600 px-3.5 py-2 rounded-xl text-xs font-bold">حذف</button>
+                    <button onclick="deleteFlashDeal('${d.id}')" class="bg-red-50 text-red-600 px-3.5 py-2 rounded-xl text-xs font-bold shadow">حذف العرض</button>
                   </div>
                 `).join('')
               }
@@ -1272,17 +1275,17 @@
       return `<div class="space-y-4">
         ${myRequests.map(req => {
           const offers = (req.quote_offers || []).sort((a, b) => Number(a.total_price) - Number(b.total_price));
-          const acceptedOffer = offers.find(o => o.status === 'accepted');
+          const acceptedOffer = offers.find(o => o.status === 'accepted') || req.status === 'accepted';
 
           return `
-            <div class="bg-white rounded-2xl p-4 shadow-sm border ${acceptedOffer ? 'border-emerald-500 bg-emerald-50/20' : 'border-gray-100'} space-y-3">
+            <div class="bg-white rounded-2xl p-4 shadow-sm border ${req.status === 'accepted' ? 'border-emerald-500 bg-emerald-50/20' : 'border-gray-100'} space-y-3">
               <div class="flex justify-between items-start">
                 <div>
                   <h3 class="font-extrabold text-sm text-gray-900">${req.title}</h3>
                   <p class="text-[11px] text-gray-400">📅 ${formatTimeAgo(req.created_at)} • ${req.delivery_type === 'delivery' ? '🚚 توصيل للمنزل' : '🏪 استلام من المحل'}</p>
                 </div>
-                <span class="text-xs ${acceptedOffer ? 'bg-emerald-600 text-white' : 'bg-emerald-50 text-emerald-700'} px-2.5 py-1 rounded-full font-bold">
-                  ${acceptedOffer ? '✅ مؤكد' : `${offers.length} عروض`}
+                <span class="text-xs ${req.status === 'accepted' ? 'bg-emerald-600 text-white' : 'bg-emerald-50 text-emerald-700'} px-2.5 py-1 rounded-full font-bold">
+                  ${req.status === 'accepted' ? '✅ مؤكد' : `${offers.length} عروض`}
                 </span>
               </div>
 
@@ -1305,14 +1308,32 @@
                         </div>
                         <span class="text-base font-extrabold text-emerald-700">${Number(of.total_price).toLocaleString()} دج</span>
                       </div>
-                      <div class="text-[11px] text-gray-600 font-bold">سعر التوصيل: ${Number(of.delivery_fee || 0).toLocaleString()} دج</div>
                       
+                      <!-- تفاصيل الأسعار لكل مادة وسعر التوصيل بدقة للزبون -->
+                      <div class="bg-white p-2.5 rounded-xl border border-gray-100 text-xs space-y-1">
+                        <div class="font-bold text-gray-700">تفاصيل عرض السعر:</div>
+                        ${(of.priced_items || []).map(pi => `
+                          <div class="flex justify-between text-gray-600">
+                            <span>${pi.name} (${pi.qty}):</span>
+                            <span class="font-bold">${Number(pi.price || 0).toLocaleString()} دج</span>
+                          </div>
+                        `).join('')}
+                        <div class="flex justify-between text-gray-600 pt-1 border-t">
+                          <span>سعر التوصيل:</span>
+                          <span class="font-bold">${Number(of.delivery_fee || 0).toLocaleString()} دج</span>
+                        </div>
+                        <div class="flex justify-between text-emerald-800 font-extrabold pt-1 border-t">
+                          <span>السعر الإجمالي (شامل التوصيل):</span>
+                          <span>${Number(of.total_price || 0).toLocaleString()} دج</span>
+                        </div>
+                      </div>
+
                       <div class="grid grid-cols-2 gap-2 pt-1">
                         <a href="tel:${of.profiles?.phone || ''}" class="bg-emerald-600 text-white py-1.5 rounded-lg text-xs font-bold text-center">📞 اتصال</a>
                         <a href="https://wa.me/${waPhone}" target="_blank" class="bg-[#25D366] text-white py-1.5 rounded-lg text-xs font-bold text-center">💬 واتساب</a>
                       </div>
 
-                      ${!acceptedOffer ? `
+                      ${req.status !== 'accepted' ? `
                         <button onclick="acceptCustomerOffer('${req.id}', '${of.id}')" class="w-full bg-emerald-600 hover:bg-emerald-700 text-white py-2 rounded-lg text-xs font-extrabold shadow">
                           ✔️ تأكيد واختيار هذا العرض والمحل
                         </button>` : (isAccepted ? `<div class="text-center text-xs font-bold text-emerald-700 bg-emerald-100 py-1.5 rounded-lg">🎉 تم تأكيد الطلب مع التاجر بنجاح</div>` : '')}
