@@ -273,7 +273,6 @@
     let dealTiers = [{ label: '1 وحدة', price: '' }];
     let activeDealForModal = null;
 
-    // توحيد صيغة رقم الهاتف الجزائري (05 / 06 / 07)
     function normalizeDzPhone(phone) {
       if (!phone) return '';
       let clean = phone.replace(/\D/g, '');
@@ -344,7 +343,6 @@
       });
     }
 
-    // ضغط الصورة ومحاولة رفعها إلى Supabase Storage (bucket: uploads) مع بديل تلقائي Base64
     function processAndUploadImage(file, maxWidth, quality, folder, callback) {
       const reader = new FileReader();
       reader.onload = function(ev) {
@@ -646,7 +644,6 @@
     async function checkAndAutoRespondInventory(req) {
       if (!req.items || req.items.length === 0) return;
 
-      // التحقق من عدم وجود عرض مسبق لنفس التاجر على نفس الطلب
       const { data: existingOffer } = await sb
         .from('quote_offers')
         .select('id')
