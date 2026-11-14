@@ -706,9 +706,9 @@
             allReqs = allReqs.filter(r => r.category === currentProfile.category || !r.category);
           }
 
-          // الطلبات العادية أو طلبات العروض السريعة الموجهة للتاجر
           openRequests = allReqs.filter(r => r.status === 'open');
           
+          // تحديث السجل والطلبات المستلمة والنشطة بدقة تامة للتاجر
           historyRequests = allReqs.filter(r => {
             const hasAcceptedOffer = (r.quote_offers || []).some(o => o.merchant_id === currentProfile.id && o.status === 'accepted');
             return (r.status === 'accepted' || hasAcceptedOffer) && r.status !== 'delivered';
@@ -987,6 +987,7 @@
       const expiresAt = new Date();
       expiresAt.setHours(expiresAt.getHours() + hoursDuration);
 
+      // إرسال الأعمدة المتوافقة تماماً مع قاعدة البيانات (تجنب خطأ delivery_fee المفقود في بعض الجداول)
       const { error } = await sb.from('flash_deals').insert({
         merchant_id: currentProfile.id,
         title,
@@ -1001,13 +1002,28 @@
       });
 
       if (error) {
-        showToast('خطأ في نشر العرض: ' + error.message, true);
-      } else {
-        showToast('⚡ تم نشر العرض السريع المتقدم بنجاح!');
-        dealImageBase64 = null;
-        dealTiers = [{ label: '1 وحدة', price: '' }];
-        await loadAllData();
+        // Fallback في حال لم يكن عمود delivery_fee موجوداً نهائياً في الجدول
+        const { error: err2 } = await sb.from('flash_deals').insert({
+          merchant_id: currentProfile.id,
+          title,
+          description,
+          tiers: validTiers,
+          image_url: dealImageBase64,
+          category: currentProfile.category || 'supermarket',
+          wilaya: currentProfile.wilaya,
+          duration_hours: hoursDuration,
+          expires_at: expiresAt.toISOString()
+        });
+        if (err2) {
+          showToast('خطأ في النشر: ' + err2.message, true);
+          return;
+        }
       }
+
+      showToast('⚡ تم نشر العرض السريع بنجاح!');
+      dealImageBase64 = null;
+      dealTiers = [{ label: '1 وحدة', price: '' }];
+      await loadAllData();
     }
 
     async function deleteFlashDeal(dealId) {
@@ -1077,7 +1093,7 @@
 
       if (!phone) return showToast('يرجى كتابة رقم الهاتف', true);
 
-      // حفظ الطلب بحيث يظهر في قسم الطلبات المفتوحة للتاجر وبنفس بيانات العرض السريع
+      // تسجيل الطلب في جدول الطلبات المعتاد ليصل فوراً للتاجر في تبويب الطلبات
       const { error } = await sb.from('quote_requests').insert({
         customer_id: currentProfile.id,
         category: activeDealForModal.category || 'supermarket',
@@ -1094,7 +1110,7 @@
       if (error) {
         showToast('خطأ في إرسال الطلب: ' + error.message, true);
       } else {
-        // إرسال العرض المالي تلقائياً للتاجر لكي يظهر مباشرة في طلبات العروض السريعة المؤكدة/المفتوحة
+        // جلب معرف الطلب الأخير وإرسال العرض المالي للتاجر وتأكيده فوراً لكي يظهر في الطلبات المؤكدة للتاجر
         const { data: reqData } = await sb.from('quote_requests').select('id').eq('customer_id', currentProfile.id).order('created_at', { ascending: false }).limit(1);
         if (reqData && reqData.length > 0) {
           await sb.from('quote_offers').insert({
@@ -1156,9 +1172,10 @@
     }
 
     async function markOrderAsDelivered(reqId) {
+      // تحديث حالة الطلب إلى delivered في جدول quote_requests لكي يُؤرشف ويختفي من القائمة النشطة
       const { error } = await sb.from('quote_requests').update({ status: 'delivered' }).eq('id', reqId);
       if (error) {
-        showToast('خطأ: ' + error.message, true);
+        showToast('خطأ في الأرشفة: ' + error.message, true);
       } else {
         showToast('✅ تم تسليم الطلب وأرشفته بنجاح!');
         await loadAllData();
