@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<body style="font-family:sans-serif;text-align:center;padding:40px;">
+  <h3>تحميل أيقونات التطبيق</h3>
+  <button onclick="saveIcon(192)" style="padding:15px 25px;font-size:16px;background:#059669;color:#fff;border:none;border-radius:12px;margin:10px;font-weight:bold;">1. تحميل icon-192.png</button><br>
+  <button onclick="saveIcon(512)" style="padding:15px 25px;font-size:16px;background:#059669;color:#fff;border:none;border-radius:12px;margin:10px;font-weight:bold;">2. تحميل icon-512.png</button>
+  <script>
+    function saveIcon(size) {
+      const c = document.createElement('canvas');
+      c.width = size; c.height = size;
+      const ctx = c.getContext('2d');
+      ctx.fillStyle = '#059669';
+      ctx.fillRect(0, 0, size, size);
+      ctx.fillStyle = '#ffffff';
+      ctx.font = 'bold ' + Math.floor(size * 0.45) + 'px Arial';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('DZ', size / 2, size / 2 + size * 0.03);
+      const a = document.createElement('a');
+      a.download = 'icon-' + size + '.png';
+      a.href = c.toDataURL('image/png');
+      a.click();
+    }
+  </script>
+</body>
+</html>
