@@ -1897,6 +1897,7 @@
 
     window.addEventListener('DOMContentLoaded', initApp);
   </script>
+
 <link rel="manifest" href="/manifest.json">
 <meta name="theme-color" content="#0d6efd">
 <div style="text-align: center; margin: 20px 0;">
@@ -1924,11 +1925,13 @@
     });
   });
 </script>
+
 <div style="text-align: center; margin: 15px 0;">
   <a href="/download.html" style="display: inline-block; background: #198754; color: #fff; padding: 12px 24px; border-radius: 10px; text-decoration: none; font-size: 15px; font-weight: bold; box-shadow: 0 4px 12px rgba(25,135,84,0.3);">
     📥 صفحة تحميل وتثبيت التطبيق
   </a>
 </div>
+
 <script src="https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.page.js" defer></script>
 <script>
   window.OneSignalDeferred = window.OneSignalDeferred || [];
@@ -1938,24 +1941,28 @@
     });
   });
 </script>
-<!-- حاوية إدخال رقم الهاتف وكود التحقق -->
-<div style="max-width: 400px; margin: 20px auto; padding: 20px; background: #f9f9f9; border-radius: 10px; font-family: Arial;">
-    <h3>تسجيل الدخول برقم الهاتف (SMS OTP)</h3>
+
+<!-- قسم التحقق من رقم الهاتف عبر SMS OTP -->
+<div class="max-w-md mx-auto my-6 px-4">
+  <div class="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 space-y-3">
+    <h3 class="font-extrabold text-sm text-gray-800 text-center">📱 تأكيد رقم الهاتف (SMS OTP)</h3>
     
-    <!-- خطوة 1: إدخال رقم الهاتف -->
-    <div id="phone-section">
-        <input type="text" id="phone-number" placeholder="+213 555..." style="width: 100%; padding: 10px; margin-bottom: 10px;" />
-        <button id="send-otp-btn" style="width: 100%; padding: 10px; background: #198754; color: #fff; border: none; border-radius: 5px;">إرسال كود التحقق</button>
+    <div id="phone-section" class="space-y-2.5">
+      <input type="tel" id="phone-number" dir="ltr" placeholder="0550123456" class="w-full px-3.5 py-2.5 rounded-xl border border-gray-200 text-sm text-left outline-none focus:border-emerald-500" />
+      <button type="button" id="send-otp-btn" class="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3 rounded-xl text-xs shadow-sm transition">
+        إرسال كود التحقق
+      </button>
     </div>
 
-    <!-- خطوة 2: إدخال الكود وتأكيده -->
-    <div id="otp-section" style="display: none; margin-top: 15px;">
-        <input type="text" id="otp-code" placeholder="أدخل الكود المكون من 6 أرقام" style="width: 100%; padding: 10px; margin-bottom: 10px;" />
-        <button id="verify-otp-btn" style="width: 100%; padding: 10px; background: #0d6efd; color: #fff; border: none; border-radius: 5px;">تأكيد الكود</button>
+    <div id="otp-section" class="hidden space-y-2.5 mt-3">
+      <input type="text" id="otp-code" dir="ltr" inputmode="numeric" maxlength="6" placeholder="أدخل الكود المكون من 6 أرقام" class="w-full px-3.5 py-2.5 rounded-xl border border-gray-200 text-sm text-center font-bold tracking-widest outline-none focus:border-emerald-500" />
+      <button type="button" id="verify-otp-btn" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-xl text-xs shadow-sm transition">
+        تأكيد الكود
+      </button>
     </div>
 
-    <!-- عنصر مخفي لإنشاء reCAPTCHA المطلوبة أمنياً من فايربيس -->
     <div id="recaptcha-container"></div>
+  </div>
 </div>
 
 <script type="module">
@@ -1974,110 +1981,75 @@
 
   const app = initializeApp(firebaseConfig);
   const auth = getAuth(app);
+  auth.languageCode = 'ar';
 
-  // إعداد حماية reCAPTCHA
   window.recaptchaVerifier = new RecaptchaVerifier(auth, 'recaptcha-container', {
     'size': 'invisible'
   });
 
-  // حدث ضغط زر إرسال الكود
   document.getElementById('send-otp-btn').addEventListener('click', () => {
-    const phoneNumber = document.getElementById('phone-number').value;
-    const appVerifier = window.recaptchaVerifier;
+    const btn = document.getElementById('send-otp-btn');
+    let rawPhone = document.getElementById('phone-number').value.trim().replace(/\s+/g, '');
 
-    signInWithPhoneNumber(auth, phoneNumber, appVerifier)
+    if (rawPhone.startsWith('00213')) {
+      rawPhone = '+213' + rawPhone.substring(5);
+    } else if (rawPhone.startsWith('213')) {
+      rawPhone = '+' + rawPhone;
+    } else if (rawPhone.startsWith('0')) {
+      rawPhone = '+213' + rawPhone.substring(1);
+    } else if (/^[567]\d{8}$/.test(rawPhone)) {
+      rawPhone = '+213' + rawPhone;
+    }
+
+    if (!/^\+213[567]\d{8}$/.test(rawPhone)) {
+      alert("يرجى إدخال رقم هاتف جزائري صحيح (مثال: 0550123456)");
+      return;
+    }
+
+    btn.disabled = true;
+    btn.textContent = "جاري الإرسال...";
+
+    signInWithPhoneNumber(auth, rawPhone, window.recaptchaVerifier)
       .then((confirmationResult) => {
         window.confirmationResult = confirmationResult;
-        alert("تم إرسال الرمز بنجاح إلى هاتفك!");
-        document.getElementById('phone-section').style.display = 'none';
-        document.getElementById('otp-section').style.display = 'block';
-      }).catch((error) => {
-        console.error("فشل إرسال الرمز", error);
-        alert("حدث خطأ، تأكد من كتابة رقم الهاتف بالصيغة الدولية (مثلاً: +213...)");
+        alert("تم إرسال كود التحقق بنجاح إلى: " + rawPhone);
+        document.getElementById('phone-section').classList.add('hidden');
+        document.getElementById('otp-section').classList.remove('hidden');
+      })
+      .catch((error) => {
+        console.error("SMS OTP Error:", error);
+        alert("تعذر الإرسال (" + error.code + "):\n" + error.message);
+      })
+      .finally(() => {
+        btn.disabled = false;
+        btn.textContent = "إرسال كود التحقق";
       });
   });
 
-  // حدث ضغط زر تأكيد الكود
   document.getElementById('verify-otp-btn').addEventListener('click', () => {
-    const code = document.getElementById('otp-code').value;
-    window.confirmationResult.confirm(code).then((result) => {
-      const user = result.user;
-      alert("تم تسجيل الدخول بنجاح! مرحباً بك يا أيمـن.");
-      console.log("User signed in successfully:", user);
-    }).catch((error) => {
-      alert("كود التحقق غير صحيح، يرجى المحاولة مرة أخرى.");
-    });
-  });
-</script>
-<!-- حاوية إدخال رقم الهاتف وكود التحقق -->
-<div style="max-width: 400px; margin: 20px auto; padding: 20px; background: #f9f9f9; border-radius: 10px; font-family: Arial;">
-    <h3>تسجيل الدخول برقم الهاتف (SMS OTP)</h3>
-    
-    <!-- خطوة 1: إدخال رقم الهاتف -->
-    <div id="phone-section">
-        <input type="text" id="phone-number" placeholder="+213 555..." style="width: 100%; padding: 10px; margin-bottom: 10px;" />
-        <button id="send-otp-btn" style="width: 100%; padding: 10px; background: #198754; color: #fff; border: none; border-radius: 5px;">إرسال كود التحقق</button>
-    </div>
+    const btn = document.getElementById('verify-otp-btn');
+    const code = document.getElementById('otp-code').value.trim();
 
-    <!-- خطوة 2: إدخال الكود وتأكيده -->
-    <div id="otp-section" style="display: none; margin-top: 15px;">
-        <input type="text" id="otp-code" placeholder="أدخل الكود المكون من 6 أرقام" style="width: 100%; padding: 10px; margin-bottom: 10px;" />
-        <button id="verify-otp-btn" style="width: 100%; padding: 10px; background: #0d6efd; color: #fff; border: none; border-radius: 5px;">تأكيد الكود</button>
-    </div>
+    if (code.length < 6) {
+      alert("يرجى إدخال الكود المكون من 6 أرقام كاملاً.");
+      return;
+    }
 
-    <!-- عنصر مخفي لإنشاء reCAPTCHA المطلوبة أمنياً من فايربيس -->
-    <div id="recaptcha-container"></div>
-</div>
+    btn.disabled = true;
+    btn.textContent = "جاري التحقق...";
 
-<script type="module">
-  import { initializeApp } from "https://www.gstatic.com/firebasejs/13.3.0/firebase-app.js";
-  import { getAuth, RecaptchaVerifier, signInWithPhoneNumber } from "https://www.gstatic.com/firebasejs/13.3.0/firebase-auth.js";
-
-  const firebaseConfig = {
-    apiKey: "AIzaSyAMuos7J30z2mof6eMnxH1O3bZ06wNcdEE",
-    authDomain: "tasairati-dz.firebaseapp.com",
-    projectId: "tasairati-dz",
-    storageBucket: "tasairati-dz.firebasestorage.app",
-    messagingSenderId: "714164189694",
-    appId: "1:714164189694:web:ddbfd933c92d5b6a53a8af",
-    measurementId: "G-3KN73BPN7B"
-  };
-
-  const app = initializeApp(firebaseConfig);
-  const auth = getAuth(app);
-
-  // إعداد حماية reCAPTCHA
-  window.recaptchaVerifier = new RecaptchaVerifier(auth, 'recaptcha-container', {
-    'size': 'invisible'
-  });
-
-  // حدث ضغط زر إرسال الكود
-  document.getElementById('send-otp-btn').addEventListener('click', () => {
-    const phoneNumber = document.getElementById('phone-number').value;
-    const appVerifier = window.recaptchaVerifier;
-
-    signInWithPhoneNumber(auth, phoneNumber, appVerifier)
-      .then((confirmationResult) => {
-        window.confirmationResult = confirmationResult;
-        alert("تم إرسال الرمز بنجاح إلى هاتفك!");
-        document.getElementById('phone-section').style.display = 'none';
-        document.getElementById('otp-section').style.display = 'block';
-      }).catch((error) => {
-        console.error("فشل إرسال الرمز", error);
-        alert("حدث خطأ، تأكد من كتابة رقم الهاتف بالصيغة الدولية (مثلاً: +213...)");
+    window.confirmationResult.confirm(code)
+      .then((result) => {
+        alert("✅ تم تأكيد رقم الهاتف بنجاح!");
+        console.log("Verified phone user:", result.user);
+      })
+      .catch((error) => {
+        alert("❌ كود التحقق غير صحيح (" + error.code + ")");
+      })
+      .finally(() => {
+        btn.disabled = false;
+        btn.textContent = "تأكيد الكود";
       });
-  });
-
-  // حدث ضغط زر تأكيد الكود
-  document.getElementById('verify-otp-btn').addEventListener('click', () => {
-    const code = document.getElementById('otp-code').value;
-    window.confirmationResult.confirm(code).then((result) => {
-      const user = result.user;
-      alert("تم تسجيل الدخول بنجاح! مرحباً بك يا أيمـن.");
-      console.log("User signed in successfully:", user);
-    }).catch((error) => {
-      alert("كود التحقق غير صحيح، يرجى المحاولة مرة أخرى.");
-    });
   });
 </script>
 </body>
