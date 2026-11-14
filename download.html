@@ -7,7 +7,7 @@
   <style>
     body {
       font-family: system-ui, -apple-system, sans-serif;
-      background-color: #f8f9fa;
+      background-color: #f4f7f6;
       color: #333;
       text-align: center;
       padding: 30px 20px;
@@ -17,46 +17,59 @@
       max-width: 450px;
       margin: 40px auto;
       background: #ffffff;
-      padding: 30px 20px;
-      border-radius: 16px;
-      box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+      padding: 35px 20px;
+      border-radius: 20px;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.06);
     }
     .logo {
-      width: 80px;
-      height: 80px;
-      background: #0d6efd;
+      width: 85px;
+      height: 85px;
+      background: #198754;
       color: #fff;
-      font-size: 32px;
+      font-size: 34px;
       font-weight: bold;
       display: flex;
       align-items: center;
       justify-content: center;
-      border-radius: 20px;
+      border-radius: 22px;
       margin: 0 auto 20px;
+      box-shadow: 0 4px 12px rgba(25,135,84,0.3);
     }
-    h1 { font-size: 22px; margin-bottom: 10px; color: #111; }
-    p { font-size: 14px; color: #666; margin-bottom: 25px; line-height: 1.6; }
+    h1 { font-size: 24px; margin-bottom: 10px; color: #212529; }
+    p { font-size: 15px; color: #6c757d; margin-bottom: 25px; line-height: 1.6; }
     .btn {
-      background: #0d6efd;
+      background: #198754;
       color: #fff;
       border: none;
       width: 100%;
-      padding: 14px;
+      padding: 15px;
       font-size: 16px;
       font-weight: bold;
-      border-radius: 10px;
+      border-radius: 12px;
       cursor: pointer;
-      box-shadow: 0 4px 12px rgba(13,110,253,0.3);
+      box-shadow: 0 4px 14px rgba(25,135,84,0.35);
       margin-bottom: 15px;
+      transition: background 0.2s;
     }
-    .btn:active { background: #0b5ed7; }
+    .btn:active { background: #157347; }
+    .manual-box {
+      font-size: 13px; 
+      color: #0f5132; 
+      background: #d1e7dd; 
+      padding: 14px; 
+      border-radius: 10px; 
+      margin-top: 15px;
+      line-height: 1.5;
+    }
     .footer-link {
       display: inline-block;
-      margin-top: 15px;
-      color: #0d6efd;
+      margin-top: 20px;
+      color: #198754;
       text-decoration: none;
       font-size: 14px;
+      font-weight: 500;
     }
+    .footer-link:hover { text-decoration: underline; }
   </style>
 </head>
 <body>
@@ -64,15 +77,15 @@
   <div class="container">
     <div class="logo">DZ</div>
     <h1>تطبيق تسعيرتي DZ</h1>
-    <p>احصل على أسرع تجربة لطلب التسعيرات من محلات ولايتك ومقارنة الأسعار مباشرة من هاتفك.</p>
+    <p>اطلب تسعيرة من محلات ولايتك وقارن الأسعار قبل الشراء مباشرة من هاتفك بكل سهولة.</p>
     
     <button id="install-btn" class="btn" style="display:none;">📲 تثبيت التطبيق على الشاشة الرئيسية</button>
     
-    <div id="manual-msg" style="font-size: 13px; color: #555; background: #e7f1ff; padding: 12px; border-radius: 8px; margin-top: 10px;">
-      💡 لتثبيت التطبيق يدوياً: اضغط على نقاط المتصفح (⋮) ثم اختر <b>«تثبيت التطبيق»</b> أو <b>«إضافة إلى الشاشة الرئيسية»</b>.
+    <div id="manual-msg" class="manual-box">
+      💡 <b>طريقة التثبيت السريع:</b> اضغط على نقاط المتصفح (⋮) في الأعلى ثم اختر <b>«تثبيت التطبيق»</b> أو <b>«إضافة إلى الشاشة الرئيسية»</b>.
     </div>
 
-    <a href="/" class="footer-link">← العودة إلى الرئيسية</a>
+    <a href="/" class="footer-link">← العودة إلى الصفحة الرئيسية</a>
   </div>
 
   <script>
