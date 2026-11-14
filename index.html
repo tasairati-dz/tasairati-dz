@@ -1473,7 +1473,6 @@
         await loadAllData();
       }
     }
-
     function renderCustomerNewRequest() {
       const cat = CATEGORIES[selectedCategory];
       return `
@@ -1939,117 +1938,6 @@
     await OneSignal.init({
       appId: "598d034c-3d51-4e39-bf11-ae84a66dc028",
     });
-  });
-</script>
-
-<!-- قسم التحقق من رقم الهاتف عبر SMS OTP -->
-<div class="max-w-md mx-auto my-6 px-4">
-  <div class="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 space-y-3">
-    <h3 class="font-extrabold text-sm text-gray-800 text-center">📱 تأكيد رقم الهاتف (SMS OTP)</h3>
-    
-    <div id="phone-section" class="space-y-2.5">
-      <input type="tel" id="phone-number" dir="ltr" placeholder="0550123456" class="w-full px-3.5 py-2.5 rounded-xl border border-gray-200 text-sm text-left outline-none focus:border-emerald-500" />
-      <button type="button" id="send-otp-btn" class="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3 rounded-xl text-xs shadow-sm transition">
-        إرسال كود التحقق
-      </button>
-    </div>
-
-    <div id="otp-section" class="hidden space-y-2.5 mt-3">
-      <input type="text" id="otp-code" dir="ltr" inputmode="numeric" maxlength="6" placeholder="أدخل الكود المكون من 6 أرقام" class="w-full px-3.5 py-2.5 rounded-xl border border-gray-200 text-sm text-center font-bold tracking-widest outline-none focus:border-emerald-500" />
-      <button type="button" id="verify-otp-btn" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-xl text-xs shadow-sm transition">
-        تأكيد الكود
-      </button>
-    </div>
-
-    <div id="recaptcha-container"></div>
-  </div>
-</div>
-
-<script type="module">
-  import { initializeApp } from "https://www.gstatic.com/firebasejs/13.3.0/firebase-app.js";
-  import { getAuth, RecaptchaVerifier, signInWithPhoneNumber } from "https://www.gstatic.com/firebasejs/13.3.0/firebase-auth.js";
-
-  const firebaseConfig = {
-    apiKey: "AIzaSyAMuos7J30z2mof6eMnxH1O3bZ06wNcdEE",
-    authDomain: "tasairati-dz.firebaseapp.com",
-    projectId: "tasairati-dz",
-    storageBucket: "tasairati-dz.firebasestorage.app",
-    messagingSenderId: "714164189694",
-    appId: "1:714164189694:web:ddbfd933c92d5b6a53a8af",
-    measurementId: "G-3KN73BPN7B"
-  };
-
-  const app = initializeApp(firebaseConfig);
-  const auth = getAuth(app);
-  auth.languageCode = 'ar';
-
-  window.recaptchaVerifier = new RecaptchaVerifier(auth, 'recaptcha-container', {
-    'size': 'invisible'
-  });
-
-  document.getElementById('send-otp-btn').addEventListener('click', () => {
-    const btn = document.getElementById('send-otp-btn');
-    let rawPhone = document.getElementById('phone-number').value.trim().replace(/\s+/g, '');
-
-    if (rawPhone.startsWith('00213')) {
-      rawPhone = '+213' + rawPhone.substring(5);
-    } else if (rawPhone.startsWith('213')) {
-      rawPhone = '+' + rawPhone;
-    } else if (rawPhone.startsWith('0')) {
-      rawPhone = '+213' + rawPhone.substring(1);
-    } else if (/^[567]\d{8}$/.test(rawPhone)) {
-      rawPhone = '+213' + rawPhone;
-    }
-
-    if (!/^\+213[567]\d{8}$/.test(rawPhone)) {
-      alert("يرجى إدخال رقم هاتف جزائري صحيح (مثال: 0550123456)");
-      return;
-    }
-
-    btn.disabled = true;
-    btn.textContent = "جاري الإرسال...";
-
-    signInWithPhoneNumber(auth, rawPhone, window.recaptchaVerifier)
-      .then((confirmationResult) => {
-        window.confirmationResult = confirmationResult;
-        alert("تم إرسال كود التحقق بنجاح إلى: " + rawPhone);
-        document.getElementById('phone-section').classList.add('hidden');
-        document.getElementById('otp-section').classList.remove('hidden');
-      })
-      .catch((error) => {
-        console.error("SMS OTP Error:", error);
-        alert("تعذر الإرسال (" + error.code + "):\n" + error.message);
-      })
-      .finally(() => {
-        btn.disabled = false;
-        btn.textContent = "إرسال كود التحقق";
-      });
-  });
-
-  document.getElementById('verify-otp-btn').addEventListener('click', () => {
-    const btn = document.getElementById('verify-otp-btn');
-    const code = document.getElementById('otp-code').value.trim();
-
-    if (code.length < 6) {
-      alert("يرجى إدخال الكود المكون من 6 أرقام كاملاً.");
-      return;
-    }
-
-    btn.disabled = true;
-    btn.textContent = "جاري التحقق...";
-
-    window.confirmationResult.confirm(code)
-      .then((result) => {
-        alert("✅ تم تأكيد رقم الهاتف بنجاح!");
-        console.log("Verified phone user:", result.user);
-      })
-      .catch((error) => {
-        alert("❌ كود التحقق غير صحيح (" + error.code + ")");
-      })
-      .finally(() => {
-        btn.disabled = false;
-        btn.textContent = "تأكيد الكود";
-      });
   });
 </script>
 </body>
