@@ -56,6 +56,43 @@
     </div>
   </div>
 
+  <!-- نافذة طلب العرض السريع للزبون -->
+  <div id="deal-order-modal" class="fixed inset-0 bg-black/50 z-50 hidden flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl w-full max-w-sm p-5 space-y-3 shadow-2xl relative">
+      <button onclick="closeDealOrderModal()" class="absolute top-3 left-3 text-gray-400 hover:text-gray-600 font-bold text-lg">✕</button>
+      <h3 class="font-extrabold text-sm text-gray-900" id="modal-deal-title">طلب عرض سريع</h3>
+      <input type="hidden" id="modal-deal-id">
+      <input type="hidden" id="modal-merchant-id">
+      
+      <div>
+        <label class="block text-xs font-bold text-gray-700 mb-1">الكمية المطلوبة</label>
+        <input type="text" id="deal-order-qty" value="1" class="w-full px-3 py-2 rounded-xl border border-gray-200 text-xs outline-none">
+      </div>
+
+      <div>
+        <label class="block text-xs font-bold text-gray-700 mb-1">طريقة الاستلام والتوصيل</label>
+        <select id="deal-order-delivery" class="w-full px-3 py-2 rounded-xl border border-gray-200 text-xs bg-white outline-none">
+          <option value="delivery">🚚 توصيل للمنزل</option>
+          <option value="pickup">🏪 استلام من المحل</option>
+        </select>
+      </div>
+
+      <div>
+        <label class="block text-xs font-bold text-gray-700 mb-1">رقم الهاتف للتواصل</label>
+        <input type="tel" id="deal-order-phone" dir="ltr" class="w-full px-3 py-2 rounded-xl border border-gray-200 text-xs text-right outline-none" placeholder="0550...">
+      </div>
+
+      <div class="bg-emerald-50 p-2.5 rounded-xl border border-emerald-100 flex items-center justify-between">
+        <span class="text-xs font-bold text-emerald-900">📍 تثبيت موقعك المباشر</span>
+        <button type="button" onclick="requestUserGPSLocation(false)" class="bg-emerald-600 text-white px-3 py-1.5 rounded-xl text-xs font-bold">تحديد الموقع</button>
+      </div>
+
+      <button onclick="submitDealOrder()" class="w-full bg-orange-600 text-white font-bold py-2.5 rounded-xl text-xs shadow">
+        إرسال الطلب للتاجر فوراً
+      </button>
+    </div>
+  </div>
+
   <!-- شاشة التحميل -->
   <div id="loading-screen" class="fixed inset-0 bg-white z-50 flex flex-col items-center justify-center">
     <div class="w-16 h-16 bg-emerald-600 rounded-2xl flex items-center justify-center text-white text-2xl font-extrabold shadow-lg mb-3 animate-bounce">DZ</div>
@@ -259,10 +296,10 @@
       const diffHours = Math.floor(diffMins / 60);
       const diffDays = Math.floor(diffHours / 24);
       const timeStr = date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-      if (diffMins < 1) return `الآن (${timeStr})`;
-      if (diffMins < 60) return `منذ ${diffMins} دقيقة (${timeStr})`;
-      if (diffHours < 24) return `منذ ${diffHours} ساعة (${timeStr})`;
-      return `منذ ${diffDays} يوم (${timeStr})`;
+      if (diffMins < 1) return `الآن (${timeStr})[span_0](start_span)[span_0](end_span)[span_1](start_span)[span_1](end_span)`;
+      if (diffMins < 60) return `منذ ${diffMins} دقيقة (${timeStr})[span_2](start_span)[span_2](end_span)[span_3](start_span)[span_3](end_span)`;
+      if (diffHours < 24) return `منذ ${diffHours} ساعة (${timeStr})[span_4](start_span)[span_4](end_span)[span_5](start_span)[span_5](end_span)`;
+      return `منذ ${diffDays} يوم (${timeStr})[span_6](start_span)[span_6](end_span)[span_7](start_span)[span_7](end_span)`;
     }
 
     function showToast(msg, isError = false) {
@@ -307,7 +344,6 @@
             currentProfile.latitude = lat;
             currentProfile.longitude = lon;
             !silent && showToast('✅ تم تثبيت موقعك المباشر في الحساب بنجاح!');
-            // تحديث واجهة الملف الشخصي إن وجد
             if (currentTab === 'profile') renderCurrentTab();
           } else {
             !silent && showToast('خطأ في حفظ الموقع بالقاعدة', true);
@@ -370,63 +406,8 @@
           <a href="tel:${userData.phone || ''}" class="bg-emerald-600 text-white py-2 rounded-xl text-xs font-bold text-center">📞 اتصال</a>
           <a href="https://wa.me/${waPhone}" target="_blank" class="bg-[#25D366] text-white py-2 rounded-xl text-xs font-bold text-center">💬 واتساب</a>
         </div>
-
-        ${isMer ? `
-          <div class="mt-4 pt-3 border-t border-gray-100 text-right">
-            <h4 class="font-bold text-xs text-gray-700 mb-2">آراء الزبائن:</h4>
-            <div class="space-y-2 max-h-36 overflow-y-auto hide-scroll">
-              ${reviews.length === 0 ? `<p class="text-[11px] text-gray-400 text-center py-2">لا توجد تقييمات حتى الآن</p>` :
-                reviews.map(rev => `
-                  <div class="bg-gray-50 p-2 rounded-lg border border-gray-100 text-[11px]">
-                    <div class="flex justify-between font-bold text-gray-800">
-                      <span>${rev.profiles?.full_name || 'زبون'}</span>
-                      <span class="text-amber-500">${'★'.repeat(rev.rating)}</span>
-                    </div>
-                    <p class="text-gray-600 mt-1">${rev.comment || 'بدون تعليق'}</p>
-                  </div>
-                `).join('')
-              }
-            </div>
-
-            ${currentProfile.role === 'customer' ? `
-              <div class="mt-3 bg-emerald-50/50 p-2.5 rounded-xl border border-emerald-100 space-y-2">
-                <div class="text-[11px] font-bold text-emerald-800">أضف تقييمك لهذا التاجر:</div>
-                <div class="flex gap-1 justify-center">
-                  <select id="new-rating" class="px-2 py-1 rounded border text-xs bg-white">
-                    <option value="5">⭐⭐⭐⭐⭐ (ممتاز)</option>
-                    <option value="4">⭐⭐⭐⭐ (جيد جداً)</option>
-                    <option value="3">⭐⭐⭐ (متوسط)</option>
-                    <option value="2">⭐⭐ (ضعيف)</option>
-                    <option value="1">⭐ (سيء)</option>
-                  </select>
-                </div>
-                <input id="new-comment" type="text" placeholder="اكتب تعليقك هنا..." class="w-full px-2 py-1.5 rounded border border-gray-200 text-xs bg-white outline-none">
-                <button onclick="submitReview('${userId}')" class="w-full bg-emerald-600 text-white py-1.5 rounded text-xs font-bold">إرسال التقييم</button>
-              </div>
-            ` : ''}
-          </div>
-        ` : ''}
       `;
       document.getElementById('profile-modal').classList.remove('hidden');
-    }
-
-    async function submitReview(merchantId) {
-      const rating = Number(document.getElementById('new-rating').value);
-      const comment = document.getElementById('new-comment').value.trim();
-
-      const { error } = await sb.from('merchant_reviews').insert({
-        merchant_id: merchantId,
-        customer_id: currentProfile.id,
-        rating,
-        comment
-      });
-
-      if (error) {
-        showToast('خطأ في إرسال التقييم: ' + error.message, true);
-      } else {
-        showToast('تم إضافة تقييمك بنجاح!');
-        closeProfileModal();
-      }
     }
 
     function closeProfileModal() {
@@ -610,23 +591,6 @@
           }
         })
         .subscribe();
-
-      sb.channel('public-offers-deals')
-        .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'quote_offers' }, payload => {
-          const offer = payload.new;
-          if (currentProfile.role === 'customer') {
-            loadAllData();
-            triggerBackgroundNotification("💰 عرض سعر جديد!", `تلقيت عرض سعر جديد بقيمة ${offer.total_price} دج`);
-          }
-        })
-        .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'flash_deals' }, payload => {
-          const deal = payload.new;
-          if (currentProfile.role === 'customer' && deal.wilaya === currentProfile.wilaya) {
-            loadAllData();
-            triggerBackgroundNotification("⚡ عرض سريع جديد!", deal.title);
-          }
-        })
-        .subscribe();
     }
 
     function setupNav() {
@@ -678,6 +642,9 @@
 
     async function loadAllData() {
       try {
+        // حذف العروض السريعة المنتهية تلقائياً
+        await sb.from('flash_deals').delete().lt('expires_at', new Date().toISOString());
+
         const { data: dealsData } = await sb.from('flash_deals').select('*, profiles(shop_name, phone, avatar_url, wilaya, municipality, latitude, longitude)').eq('wilaya', currentProfile.wilaya).order('created_at', { ascending: false });
         flashDeals = dealsData || [];
 
@@ -691,7 +658,7 @@
             .eq('customer_id', currentProfile.id)
             .order('created_at', { ascending: false });
           myRequests = data || [];
-          historyRequests = (myRequests || []).filter(r => r.status === 'accepted' || r.status === 'closed');
+          historyRequests = (myRequests || []).filter(r => r.status === 'delivered');
         } else {
           let query = sb
             .from('quote_requests')
@@ -709,9 +676,11 @@
           }
 
           openRequests = allReqs.filter(r => r.status === 'open');
+          
+          // سجل الطلبات المؤكدة للتاجر (التي قبلها الزبون ولم يتم تسليمها بعد)
           historyRequests = allReqs.filter(r => {
             const hasAcceptedOffer = (r.quote_offers || []).some(o => o.merchant_id === currentProfile.id && o.status === 'accepted');
-            return hasAcceptedOffer || r.status === 'accepted';
+            return hasAcceptedOffer && r.status !== 'delivered';
           });
         }
       } catch (err) {
@@ -837,7 +806,7 @@
         <div class="space-y-4">
           <div class="bg-gradient-to-r from-amber-500 to-orange-600 rounded-2xl p-4 text-white shadow-md">
             <h2 class="font-extrabold text-base flex items-center gap-2"><span>⚡</span> العروض السريعة والخصومات اليومية</h2>
-            <p class="text-xs text-amber-100 mt-1">عروض حصرية محدودة الوقت من محلات ولايتك (${currentProfile.wilaya})</p>
+            <p class="text-xs text-amber-100 mt-1">تُحذف العروض تلقائياً بعد انتهاء مدتها (مثل القصص)</p>
           </div>
 
           ${isMerchant ? `
@@ -868,7 +837,7 @@
                       <h4 class="font-extrabold text-sm text-gray-900">${d.title}</h4>
                       <div class="text-xs font-extrabold text-orange-600 mt-0.5">${Number(d.price).toLocaleString()} دج • ${formatTimeAgo(d.created_at)}</div>
                     </div>
-                    <button onclick="deleteFlashDeal('${d.id}')" class="bg-red-50 text-red-600 p-2 rounded-xl text-xs font-bold">حذف</button>
+                    <button onclick="deleteFlashDeal('${d.id}')" class="bg-red-50 text-red-600 px-3 py-1.5 rounded-xl text-xs font-bold">حذف</button>
                   </div>
                 `).join('')
               }
@@ -895,7 +864,7 @@
                           ${d.profiles?.avatar_url ? `<img src="${d.profiles.avatar_url}" class="w-10 h-10 rounded-full object-cover border cursor-pointer" onclick="viewUserProfile('${d.merchant_id}')">` : `<div class="w-10 h-10 bg-emerald-100 text-emerald-700 rounded-full flex items-center justify-center font-extrabold text-sm cursor-pointer" onclick="viewUserProfile('${d.merchant_id}')">🏪</div>`}
                           <div>
                             <div class="font-extrabold text-sm text-gray-900 cursor-pointer hover:text-emerald-600" onclick="viewUserProfile('${d.merchant_id}')">${d.profiles?.shop_name || 'محل تجاري'} ⭐</div>
-                            <div class="text-[11px] text-gray-400">${d.profiles?.municipality || d.wilaya} • 📅 ${formatTimeAgo(d.created_at)}</div>
+                            <div class="text-[11px] text-gray-400">${d.profiles?.municipality || d.wilaya} • 📅 نشر ${formatTimeAgo(d.created_at)}</div>
                             ${distText}
                           </div>
                         </div>
@@ -908,8 +877,7 @@
                       <div class="flex items-center justify-between pt-2 border-t border-gray-100">
                         <div class="text-base font-extrabold text-orange-600">${Number(d.price).toLocaleString()} دج</div>
                         <div class="flex gap-1.5">
-                          <a href="tel:${d.profiles?.phone || ''}" class="bg-emerald-600 text-white px-3 py-1.5 rounded-lg text-xs font-bold">📞 اتصال</a>
-                          <a href="https://wa.me/${waPhone}" target="_blank" class="bg-[#25D366] text-white px-3 py-1.5 rounded-lg text-xs font-bold">💬 واتساب</a>
+                          <button onclick="openDealOrderModal('${d.id}', '${d.title}', '${d.merchant_id}')" class="bg-orange-600 hover:bg-orange-700 text-white px-3 py-1.5 rounded-lg text-xs font-bold shadow">🛒 اطلب هذا الغرض</button>
                         </div>
                       </div>
                     </div>`;
@@ -926,7 +894,7 @@
       const price = document.getElementById('deal-price').value;
       const hoursDuration = Number(document.getElementById('deal-duration').value);
 
-      if (!title || !price) return showToast('يرجى كتابة عنوان العرض السريع والسعر', true);
+      if (!title || !price) return showToast('يرجى كتابة عنوان العرض والسعر', true);
 
       const expiresAt = new Date();
       expiresAt.setHours(expiresAt.getHours() + hoursDuration);
@@ -954,20 +922,107 @@
 
     async function deleteFlashDeal(dealId) {
       const { error } = await sb.from('flash_deals').delete().eq('id', dealId);
-      if (!error) { showToast('تم حذف العرض بنجاح'); await loadAllData(); }
+      if (error) {
+        showToast('خطأ في الحذف: ' + error.message, true);
+      } else {
+        showToast('تم حذف العرض بنجاح');
+        await loadAllData();
+      }
+    }
+
+    function openDealOrderModal(dealId, title, merchantId) {
+      document.getElementById('modal-deal-id').value = dealId;
+      document.getElementById('modal-merchant-id').value = merchantId;
+      document.getElementById('modal-deal-title').textContent = `طلب: ${title}`;
+      document.getElementById('deal-order-phone').value = currentProfile.phone || '';
+      document.getElementById('deal-order-modal').classList.remove('hidden');
+    }
+
+    function closeDealOrderModal() {
+      document.getElementById('deal-order-modal').classList.add('hidden');
+    }
+
+    async function submitDealOrder() {
+      const merchantId = document.getElementById('modal-merchant-id').value;
+      const dealTitle = document.getElementById('modal-deal-title').textContent;
+      const qty = document.getElementById('deal-order-qty').value.trim() || '1';
+      const deliveryType = document.getElementById('deal-order-delivery').value;
+      const phone = document.getElementById('deal-order-phone').value.trim();
+
+      if (!phone) return showToast('يرجى كتابة رقم الهاتف', true);
+
+      // إنشاء طلب تسعيرة تلقائي خاص بهذا العرض السريع ليصل للتاجر مباشرة
+      const { error } = await sb.from('quote_requests').insert({
+        customer_id: currentProfile.id,
+        category: 'supermarket',
+        wilaya: currentProfile.wilaya,
+        municipality: currentProfile.municipality || 'وسط المدينة',
+        title: dealTitle,
+        items: [{ name: dealTitle, qty: qty }],
+        delivery_type: deliveryType,
+        latitude: currentProfile.latitude || null,
+        longitude: currentProfile.longitude || null,
+        status: 'open'
+      });
+
+      if (error) {
+        showToast('خطأ في إرسال الطلب: ' + error.message, true);
+      } else {
+        showToast('✅ تم إرسال طلب العرض السريع للتاجر بنجاح!');
+        closeDealOrderModal();
+        switchTab('orders');
+      }
     }
 
     function renderHistoryView() {
       if (historyRequests.length === 0) {
-        return `<div class="text-center py-12 bg-white rounded-2xl border border-gray-100 p-6"><div class="text-4xl mb-2">📜</div><p class="font-bold text-gray-700 text-sm">سجل الطلبات المؤكدة فارغ حالياً</p></div>`;
+        return `<div class="text-center py-12 bg-white rounded-2xl border border-gray-100 p-6"><div class="text-4xl mb-2">📜</div><p class="font-bold text-gray-700 text-sm">لا توجد طلبات مؤكدة قيد التنفيذ حالياً</p></div>`;
       }
       return `<div class="space-y-4"><h2 class="font-extrabold text-sm text-gray-800 px-1">سجل الطلبات المؤكدة والناجحة</h2>
-        ${historyRequests.map(req => `
-          <div class="bg-white rounded-2xl p-4 shadow-sm border border-emerald-100 space-y-1">
-            <h3 class="font-extrabold text-sm text-gray-900">${req.title}</h3>
-            <p class="text-[11px] text-gray-400">📅 ${formatTimeAgo(req.created_at)}</p>
-          </div>
-        `).join('')}</div>`;
+        ${historyRequests.map(req => {
+          const customer = req.profiles || {};
+          const waPhone = formatDzWhatsApp(customer.phone || '');
+          const customerLat = req.latitude || customer.latitude;
+          const customerLon = req.longitude || customer.longitude;
+
+          return `
+            <div class="bg-white rounded-2xl p-4 shadow-sm border border-emerald-300 space-y-3">
+              <div class="flex justify-between items-start">
+                <div>
+                  <h3 class="font-extrabold text-sm text-gray-900">${req.title}</h3>
+                  <p class="text-[11px] text-gray-500 mt-0.5">الزبون: ${customer.full_name || 'زبون'} • 📅 ${formatTimeAgo(req.created_at)}</p>
+                  <p class="text-[11px] text-emerald-700 font-bold mt-0.5">${req.delivery_type === 'delivery' ? '🚚 توصيل للمنزل' : '🏪 استلام من المحل'}</p>
+                </div>
+                <span class="bg-emerald-100 text-emerald-800 text-[10px] font-extrabold px-2.5 py-1 rounded-full">✅ مؤكد</span>
+              </div>
+
+              ${customerLat && customerLon ? `
+                <div>
+                  <a href="https://maps.google.com/?q=${customerLat},${customerLon}" target="_blank" class="block w-full bg-blue-600 text-white py-2 rounded-xl text-xs font-bold text-center shadow">
+                    🗺️ اضغط هنا لتوجيهك مباشرة لموقع الزبون في Google Maps
+                  </a>
+                </div>` : '<div class="text-xs text-amber-600 font-bold">⚠️ موقع الزبون غير مسجل بدقة</div>'}
+
+              <div class="grid grid-cols-2 gap-2 pt-1 border-t border-gray-100">
+                <a href="tel:${customer.phone || ''}" class="bg-emerald-600 text-white py-2 rounded-xl text-xs font-bold text-center">📞 اتصال بالزبون</a>
+                <a href="https://wa.me/${waPhone}" target="_blank" class="bg-[#25D366] text-white py-2 rounded-xl text-xs font-bold text-center">💬 واتساب</a>
+              </div>
+
+              <button onclick="markOrderAsDelivered('${req.id}')" class="w-full bg-emerald-700 hover:bg-emerald-800 text-white font-extrabold py-2.5 rounded-xl text-xs shadow">
+                ✔️ تم التوصيل للزبون (إنهاء وأرشفة الطلب)
+              </button>
+            </div>`;
+        }).join('')}</div>`;
+    }
+
+    async function markOrderAsDelivered(reqId) {
+      const { error } = await sb.from('quote_requests').update({ status: 'delivered' }).eq('id', reqId);
+      if (error) {
+        showToast('خطأ: ' + error.message, true);
+      } else {
+        showToast('✅ تم تسليم الطلب وأرشفته بنجاح!');
+        await loadAllData();
+      }
     }
 
     function renderCustomerNewRequest() {
@@ -1139,7 +1194,7 @@
                       ${!acceptedOffer ? `
                         <button onclick="acceptCustomerOffer('${req.id}', '${of.id}')" class="w-full bg-emerald-600 hover:bg-emerald-700 text-white py-2 rounded-lg text-xs font-extrabold shadow">
                           ✔️ تأكيد واختيار هذا العرض والمحل
-                        </button>` : (isAccepted ? `<div class="text-center text-xs font-bold text-emerald-700 bg-emerald-100 py-1.5 rounded-lg">🎉 تم اختيار هذا العرض وتأكيد الطلب بنجاح</div>` : '')}
+                        </button>` : (isAccepted ? `<div class="text-center text-xs font-bold text-emerald-700 bg-emerald-100 py-1.5 rounded-lg">🎉 تم تأكيد الطلب مع التاجر بنجاح</div>` : '')}
                     </div>`;
                 }).join('')}
               </div>
@@ -1149,7 +1204,6 @@
     }
 
     async function acceptCustomerOffer(reqId, offerId) {
-      // تحديث حالة العرض إلى accepted والحالة العامة للطلب إلى accepted
       await sb.from('quote_offers').update({ status: 'accepted' }).eq('id', offerId);
       await sb.from('quote_requests').update({ status: 'accepted' }).eq('id', reqId);
       showToast('✅ تم تأكيد الطلب وإبلاغ التاجر بنجاح!');
