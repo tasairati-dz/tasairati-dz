@@ -43,52 +43,59 @@
     document.head.appendChild(manifestLink);
   </script>
 
-  <!-- شريط الإشعارات العلوي -->
+  <!-- شريط الإشعارات -->
   <div id="toast" class="fixed top-4 left-4 right-4 max-w-md mx-auto z-50 hidden transition-all duration-300">
     <div id="toast-box" class="px-4 py-3 rounded-xl shadow-lg text-white text-sm font-bold text-center"></div>
   </div>
 
-  <!-- نافذة منبثقة للملف والتقييمات -->
+  <!-- نافذة الملف الشخصي -->
   <div id="profile-modal" class="fixed inset-0 bg-black/50 z-50 hidden flex items-center justify-center p-4">
-    <div id="profile-modal-content" class="bg-white rounded-2xl w-full max-w-sm p-5 space-y-4 shadow-2xl relative max-h-[90vh] overflow-y-auto">
+    <div class="bg-white rounded-2xl w-full max-w-sm p-5 space-y-4 shadow-2xl relative max-h-[90vh] overflow-y-auto">
       <button onclick="closeProfileModal()" class="absolute top-3 left-3 text-gray-400 hover:text-gray-600 font-bold text-lg">✕</button>
       <div id="modal-profile-body" class="text-center"></div>
     </div>
   </div>
 
-  <!-- نافذة طلب العرض السريع للزبون -->
+  <!-- نافذة طلب العرض السريع المتقدم للزبون -->
   <div id="deal-order-modal" class="fixed inset-0 bg-black/50 z-50 hidden flex items-center justify-center p-4">
-    <div class="bg-white rounded-2xl w-full max-w-sm p-5 space-y-3 shadow-2xl relative">
+    <div class="bg-white rounded-2xl w-full max-w-sm p-5 space-y-3 shadow-2xl relative max-h-[90vh] overflow-y-auto">
       <button onclick="closeDealOrderModal()" class="absolute top-3 left-3 text-gray-400 hover:text-gray-600 font-bold text-lg">✕</button>
       <h3 class="font-extrabold text-sm text-gray-900" id="modal-deal-title">طلب عرض سريع</h3>
       <input type="hidden" id="modal-deal-id">
       <input type="hidden" id="modal-merchant-id">
       
-      <div>
-        <label class="block text-xs font-bold text-gray-700 mb-1">الكمية المطلوبة</label>
-        <input type="text" id="deal-order-qty" value="1" class="w-full px-3 py-2 rounded-xl border border-gray-200 text-xs outline-none">
+      <div id="modal-deal-image-container" class="hidden text-center">
+        <img id="modal-deal-img" src="" class="w-full h-36 object-cover rounded-xl border">
       </div>
 
       <div>
-        <label class="block text-xs font-bold text-gray-700 mb-1">طريقة الاستلام والتوصيل</label>
-        <select id="deal-order-delivery" class="w-full px-3 py-2 rounded-xl border border-gray-200 text-xs bg-white outline-none">
-          <option value="delivery">🚚 توصيل للمنزل</option>
-          <option value="pickup">🏪 استلام من المحل</option>
+        <label class="block text-xs font-bold text-gray-700 mb-1">الكمية / الخيار المطلوب</label>
+        <select id="modal-deal-tier" onchange="updateModalDealPrice()" class="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-xs bg-white outline-none font-bold text-emerald-700">
         </select>
       </div>
 
       <div>
-        <label class="block text-xs font-bold text-gray-700 mb-1">رقم الهاتف للتواصل</label>
-        <input type="tel" id="deal-order-phone" dir="ltr" class="w-full px-3 py-2 rounded-xl border border-gray-200 text-xs text-right outline-none" placeholder="0550...">
+        <label class="block text-xs font-bold text-gray-700 mb-1">طريقة الاستلام والتوصيل</label>
+        <select id="deal-order-delivery" onchange="updateModalDealPrice()" class="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-xs bg-white outline-none">
+          <option value="pickup">🏪 استلام من المحل (بدون تكلفة توصيل)</option>
+          <option value="delivery">🚚 توصيل للمنزل (مع تكلفة التوصيل)</option>
+        </select>
       </div>
 
-      <div class="bg-emerald-50 p-2.5 rounded-xl border border-emerald-100 flex items-center justify-between">
-        <span class="text-xs font-bold text-emerald-900">📍 تثبيت موقعك المباشر</span>
+      <div class="bg-emerald-50 p-3 rounded-xl border border-emerald-100 flex items-center justify-between">
+        <div>
+          <div class="text-xs font-extrabold text-emerald-900" id="modal-calculated-price">السعر الإجمالي: 0 دج</div>
+        </div>
         <button type="button" onclick="requestUserGPSLocation(false)" class="bg-emerald-600 text-white px-3 py-1.5 rounded-xl text-xs font-bold">تحديد الموقع</button>
       </div>
 
-      <button onclick="submitDealOrder()" class="w-full bg-orange-600 text-white font-bold py-2.5 rounded-xl text-xs shadow">
-        إرسال الطلب للتاجر فوراً
+      <div>
+        <label class="block text-xs font-bold text-gray-700 mb-1">رقم الهاتف للتواصل</label>
+        <input type="tel" id="deal-order-phone" dir="ltr" class="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-xs text-right outline-none" placeholder="0550...">
+      </div>
+
+      <button onclick="submitDealOrder()" class="w-full bg-orange-600 text-white font-bold py-3 rounded-xl text-xs shadow">
+        إرسال الطلب للتاجر فوراً 🚀
       </button>
     </div>
   </div>
@@ -100,7 +107,7 @@
     <p class="text-gray-400 text-xs mt-1">جاري الاتصال بقاعدة البيانات...</p>
   </div>
 
-  <!-- 1. شاشة تسجيل الدخول وإنشاء الحساب -->
+  <!-- شاشة تسجيل الدخول -->
   <div id="auth-view" class="hidden min-h-screen bg-white p-5 flex flex-col justify-center">
     <div class="text-center mb-6">
       <div class="w-16 h-16 bg-emerald-600 rounded-2xl mx-auto flex items-center justify-center text-white text-2xl font-extrabold shadow-md mb-3">DZ</div>
@@ -139,7 +146,7 @@
           <label class="block text-xs font-bold text-gray-700 mb-1">صورة الملف الشخصي أو شعار المحل</label>
           <div class="flex items-center justify-center gap-3">
             <div id="avatar-preview-container" class="w-14 h-14 bg-gray-100 rounded-full border border-gray-200 flex items-center justify-center overflow-hidden">
-              <span id="avatar-placeholder" class="text-xl">📷</span>
+              <span class="text-xl">📷</span>
             </div>
             <input type="file" accept="image/*" onchange="handleAvatarUpload(event)" class="text-xs text-gray-500 file:py-2 file:px-3 file:rounded-xl file:border-0 file:text-xs file:font-bold file:bg-emerald-50 file:text-emerald-700">
           </div>
@@ -147,7 +154,7 @@
 
         <div>
           <label class="block text-xs font-bold text-gray-700 mb-1">الاسم الكامل</label>
-          <input type="text" id="reg-name" placeholder="مثال: محمد بن علي" class="w-full px-3.5 py-2.5 rounded-xl border border-gray-200 text-sm focus:border-emerald-500 outline-none">
+          <input type="text" id="reg-name" placeholder="مثال: محمد بن علي" class="w-full px-3.5 py-2.5 rounded-xl border border-gray-200 text-sm outline-none">
         </div>
 
         <div id="merchant-only" class="hidden space-y-3.5 bg-amber-50/70 p-3 rounded-xl border border-amber-100">
@@ -180,12 +187,12 @@
 
       <div>
         <label class="block text-xs font-bold text-gray-700 mb-1">رقم الهاتف الجزائري</label>
-        <input type="tel" id="auth-phone" required placeholder="0550123456" dir="ltr" class="w-full px-3.5 py-2.5 rounded-xl border border-gray-200 text-sm text-right focus:border-emerald-500 outline-none">
+        <input type="tel" id="auth-phone" required placeholder="0550123456" dir="ltr" class="w-full px-3.5 py-2.5 rounded-xl border border-gray-200 text-sm text-right outline-none">
       </div>
 
       <div>
         <label class="block text-xs font-bold text-gray-700 mb-1">كلمة المرور</label>
-        <input type="password" id="auth-password" required minlength="6" placeholder="••••••" class="w-full px-3.5 py-2.5 rounded-xl border border-gray-200 text-sm focus:border-emerald-500 outline-none">
+        <input type="password" id="auth-password" required minlength="6" placeholder="••••••" class="w-full px-3.5 py-2.5 rounded-xl border border-gray-200 text-sm outline-none">
       </div>
 
       <button type="submit" id="auth-submit-btn" class="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3 rounded-xl shadow-md transition">
@@ -194,7 +201,7 @@
     </form>
   </div>
 
-  <!-- ==================== 2. التطبيق الرئيسي ==================== -->
+  <!-- التطبيق الرئيسي -->
   <div id="app-view" class="hidden">
     <header class="bg-emerald-600 text-white px-4 py-3.5 sticky top-0 z-30 shadow-sm flex items-center justify-between">
       <div class="flex items-center gap-2.5">
@@ -208,9 +215,9 @@
         </div>
       </div>
       <div class="flex items-center gap-1.5">
-        <button onclick="requestNotificationPermission()" class="bg-white/15 p-2 rounded-xl text-xs font-bold active:scale-95" title="تفعيل الإشعارات الفورية">🔔</button>
-        <button onclick="requestUserGPSLocation(false)" class="bg-white/15 p-2 rounded-xl text-xs font-bold active:scale-95" title="تحديث موقعي المباشر">📍</button>
-        <button onclick="loadAllData()" class="bg-white/15 p-2 rounded-xl text-xs font-bold active:scale-95">🔄</button>
+        <button onclick="requestNotificationPermission()" class="bg-white/15 p-2 rounded-xl text-xs font-bold" title="تفعيل الإشعارات">🔔</button>
+        <button onclick="requestUserGPSLocation(false)" class="bg-white/15 p-2 rounded-xl text-xs font-bold" title="تحديث موقعي">📍</button>
+        <button onclick="loadAllData()" class="bg-white/15 p-2 rounded-xl text-xs font-bold">🔄</button>
       </div>
     </header>
 
@@ -250,6 +257,7 @@
     let draftItems = [];
     let draftAvatarBase64 = null;
     let editAvatarBase64 = null;
+    let dealImageBase64 = null;
     let myRequests = [];
     let openRequests = [];
     let flashDeals = [];
@@ -259,6 +267,8 @@
     let merchantSearchQuery = '';
     let merchantCategoryFilter = 'all';
     let merchantDistanceFilter = 'all';
+    let dealTiers = [{ label: '1 وحدة', price: '' }];
+    let activeDealForModal = null;
 
     function formatDzWhatsApp(phone) {
       if (!phone) return '';
@@ -495,6 +505,28 @@
       reader.readAsDataURL(file);
     }
 
+    function handleDealImageUpload(e) {
+      const file = e.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = function(ev) {
+        const img = new Image();
+        img.onload = function() {
+          const canvas = document.createElement('canvas');
+          const maxW = 500;
+          const scale = Math.min(1, maxW / img.width);
+          canvas.width = img.width * scale;
+          canvas.height = img.height * scale;
+          canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
+          dealImageBase64 = canvas.toDataURL('image/jpeg', 0.7);
+          const previewEl = document.getElementById('deal-image-preview');
+          if (previewEl) previewEl.innerHTML = `<img src="${dealImageBase64}" class="w-20 h-20 rounded-xl object-cover border">`;
+        };
+        img.src = ev.target.result;
+      };
+      reader.readAsDataURL(file);
+    }
+
     async function handleAuth(e) {
       e.preventDefault();
       const phone = document.getElementById('auth-phone').value.trim().replace(/\s+/g, '');
@@ -642,7 +674,6 @@
 
     async function loadAllData() {
       try {
-        // حذف العروض السريعة المنتهية تلقائياً
         await sb.from('flash_deals').delete().lt('expires_at', new Date().toISOString());
 
         const { data: dealsData } = await sb.from('flash_deals').select('*, profiles(shop_name, phone, avatar_url, wilaya, municipality, latitude, longitude)').eq('wilaya', currentProfile.wilaya).order('created_at', { ascending: false });
@@ -677,10 +708,10 @@
 
           openRequests = allReqs.filter(r => r.status === 'open');
           
-          // سجل الطلبات المؤكدة للتاجر (التي قبلها الزبون ولم يتم تسليمها بعد)
+          // سجل الطلبات المؤكدة والناجحة بدقة تامة للتاجر
           historyRequests = allReqs.filter(r => {
             const hasAcceptedOffer = (r.quote_offers || []).some(o => o.merchant_id === currentProfile.id && o.status === 'accepted');
-            return hasAcceptedOffer && r.status !== 'delivered';
+            return (r.status === 'accepted' || hasAcceptedOffer) && r.status !== 'delivered';
           });
         }
       } catch (err) {
@@ -739,7 +770,7 @@
         <div class="space-y-4">
           <div class="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 space-y-3">
             <h2 class="font-extrabold text-sm text-gray-800">🔍 بحث عن المحلات (ماركت بلاي المحلات)</h2>
-            <input type="text" value="${merchantSearchQuery}" oninput="merchantSearchQuery = this.value; renderMerchantsSearchView()" placeholder="ابحث باسم المحل (مثل: محل البركة)..." class="w-full px-3.5 py-2.5 rounded-xl border border-gray-200 text-xs outline-none">
+            <input type="text" value="${merchantSearchQuery}" oninput="merchantSearchQuery = this.value; renderMerchantsSearchView()" placeholder="ابحث باسم المحل..." class="w-full px-3.5 py-2.5 rounded-xl border border-gray-200 text-xs outline-none">
             
             <div class="grid grid-cols-2 gap-2">
               <div>
@@ -806,25 +837,58 @@
         <div class="space-y-4">
           <div class="bg-gradient-to-r from-amber-500 to-orange-600 rounded-2xl p-4 text-white shadow-md">
             <h2 class="font-extrabold text-base flex items-center gap-2"><span>⚡</span> العروض السريعة والخصومات اليومية</h2>
-            <p class="text-xs text-amber-100 mt-1">تُحذف العروض تلقائياً بعد انتهاء مدتها (مثل القصص)</p>
+            <p class="text-xs text-amber-100 mt-1">تُحذف العروض تلقائياً بعد انتهاء مدتها أو يدوياً من التاجر</p>
           </div>
 
           ${isMerchant ? `
             <div class="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 space-y-3">
-              <h3 class="font-extrabold text-sm text-gray-800">➕ إضافة عرض سريع جديد لزبائن ولايتك</h3>
-              <input id="deal-title" type="text" placeholder="عنوان العرض (مثال: تخفيض على الزيت)" class="w-full px-3.5 py-2.5 rounded-xl border border-gray-200 text-xs outline-none">
+              <h3 class="font-extrabold text-sm text-gray-800">➕ إضافة عرض سريع متقدم لزبائن ولايتك</h3>
+              
+              <input id="deal-title" type="text" placeholder="عنوان الغرض أو العرض (مثال: علبة طماطم)" class="w-full px-3.5 py-2.5 rounded-xl border border-gray-200 text-xs outline-none">
               <textarea id="deal-desc" rows="2" placeholder="تفاصيل العرض..." class="w-full px-3.5 py-2.5 rounded-xl border border-gray-200 text-xs outline-none"></textarea>
-              <div class="grid grid-cols-2 gap-2">
-                <input id="deal-price" type="number" placeholder="السعر بعد التخفيض (دج)" class="px-3.5 py-2.5 rounded-xl border border-gray-200 text-xs outline-none">
-                <select id="deal-duration" class="px-3.5 py-2.5 rounded-xl border border-gray-200 text-xs bg-white outline-none">
-                  <option value="24">مدة العرض: 24 ساعة</option>
-                  <option value="48">مدة العرض: 48 ساعة</option>
-                  <option value="72">مدة العرض: 3 أيام</option>
-                  <option value="168">مدة العرض: أسبوع</option>
-                </select>
+              
+              <div class="flex items-center gap-3 bg-gray-50 p-2.5 rounded-xl border border-gray-200">
+                <div id="deal-image-preview" class="w-16 h-16 bg-gray-100 rounded-xl flex items-center justify-center text-xs text-gray-400">صورة الغرض</div>
+                <div class="flex-1">
+                  <label class="block text-xs font-bold text-gray-700 mb-1">صورة الغرض (اختياري)</label>
+                  <input type="file" accept="image/*" onchange="handleDealImageUpload(event)" class="text-xs text-gray-500 file:py-1.5 file:px-2.5 file:rounded-lg file:border-0 file:text-xs file:font-bold file:bg-emerald-50 file:text-emerald-700">
+                </div>
               </div>
-              <button onclick="publishFlashDeal()" class="w-full bg-orange-600 hover:bg-orange-700 text-white font-bold py-2.5 rounded-xl text-xs shadow-sm">
-                نشر العرض الفوري الآن
+
+              <div class="bg-gray-50 p-3 rounded-xl border border-gray-200 space-y-2">
+                <div class="flex justify-between items-center">
+                  <label class="text-xs font-extrabold text-gray-700">الأسعار حسب الكميات (مثال: 1 علبة بـ 150دج، 2 بـ 250دج):</label>
+                  <button type="button" onclick="addDealTierRow()" class="bg-emerald-600 text-white px-2.5 py-1 rounded-lg text-xs font-bold">+ إضافة كمية أخرى</button>
+                </div>
+                <div id="deal-tiers-container" class="space-y-2">
+                  ${dealTiers.map((tier, idx) => `
+                    <div class="flex gap-2 items-center">
+                      <input type="text" value="${tier.label}" oninput="dealTiers[${idx}].label=this.value" placeholder="مثال: 1 علبة" class="flex-1 px-3 py-2 rounded-lg border border-gray-200 text-xs bg-white outline-none">
+                      <input type="number" value="${tier.price}" oninput="dealTiers[${idx}].price=this.value" placeholder="السعر (دج)" class="w-28 px-3 py-2 rounded-lg border border-gray-200 text-xs bg-white outline-none font-bold">
+                      ${idx > 0 ? `<button type="button" onclick="removeDealTierRow(${idx})" class="text-red-500 font-bold px-2">✕</button>` : ''}
+                    </div>
+                  `).join('')}
+                </div>
+              </div>
+
+              <div class="grid grid-cols-2 gap-2">
+                <div>
+                  <label class="block text-[11px] font-bold text-gray-700 mb-1">سعر التوصيل الإضافي (دج)</label>
+                  <input id="deal-delivery-fee" type="number" placeholder="مثال: 200 دج" class="w-full px-3.5 py-2.5 rounded-xl border border-gray-200 text-xs outline-none">
+                </div>
+                <div>
+                  <label class="block text-[11px] font-bold text-gray-700 mb-1">مدة العرض</label>
+                  <select id="deal-duration" class="w-full px-3.5 py-2.5 rounded-xl border border-gray-200 text-xs bg-white outline-none">
+                    <option value="24">24 ساعة</option>
+                    <option value="48">48 ساعة</option>
+                    <option value="72">3 أيام</option>
+                    <option value="168">أسبوع</option>
+                  </select>
+                </div>
+              </div>
+
+              <button onclick="publishFlashDeal()" class="w-full bg-orange-600 hover:bg-orange-700 text-white font-bold py-3 rounded-xl text-xs shadow-sm">
+                نشر العرض الفوري الآن ⚡
               </button>
             </div>
 
@@ -833,11 +897,14 @@
               ${myDeals.length === 0 ? `<p class="text-xs text-gray-400 text-center py-4 bg-white rounded-2xl">لم تنشر أي عرض سريع بعد</p>` :
                 myDeals.map(d => `
                   <div class="bg-white rounded-2xl p-3.5 shadow-sm border border-orange-100 flex justify-between items-center">
-                    <div>
-                      <h4 class="font-extrabold text-sm text-gray-900">${d.title}</h4>
-                      <div class="text-xs font-extrabold text-orange-600 mt-0.5">${Number(d.price).toLocaleString()} دج • ${formatTimeAgo(d.created_at)}</div>
+                    <div class="flex items-center gap-3">
+                      ${d.image_url ? `<img src="${d.image_url}" class="w-12 h-12 rounded-xl object-cover border">` : ''}
+                      <div>
+                        <h4 class="font-extrabold text-sm text-gray-900">${d.title}</h4>
+                        <div class="text-xs font-extrabold text-orange-600 mt-0.5">مدة العرض: ${d.duration_hours || 24} ساعة • ${formatTimeAgo(d.created_at)}</div>
+                      </div>
                     </div>
-                    <button onclick="deleteFlashDeal('${d.id}')" class="bg-red-50 text-red-600 px-3 py-1.5 rounded-xl text-xs font-bold">حذف</button>
+                    <button onclick="deleteFlashDeal('${d.id}')" class="bg-red-50 text-red-600 px-3.5 py-2 rounded-xl text-xs font-bold">حذف</button>
                   </div>
                 `).join('')
               }
@@ -850,7 +917,6 @@
                   <p class="font-bold text-gray-700 text-sm">لا توجد عروض سريعة حالياً في ولايتك</p>
                 </div>` :
                 flashDeals.map(d => {
-                  const waPhone = formatDzWhatsApp(d.profiles?.phone || '');
                   let distText = '';
                   if (currentProfile.latitude && currentProfile.longitude && d.profiles?.latitude && d.profiles?.longitude) {
                     const dist = calculateDistance(currentProfile.latitude, currentProfile.longitude, d.profiles.latitude, d.profiles.longitude);
@@ -858,7 +924,7 @@
                   }
                   
                   return `
-                    <div class="bg-white rounded-2xl p-4 shadow-sm border border-orange-100 space-y-2">
+                    <div class="bg-white rounded-2xl p-4 shadow-sm border border-orange-100 space-y-2.5">
                       <div class="flex items-center justify-between">
                         <div class="flex items-center gap-2.5">
                           ${d.profiles?.avatar_url ? `<img src="${d.profiles.avatar_url}" class="w-10 h-10 rounded-full object-cover border cursor-pointer" onclick="viewUserProfile('${d.merchant_id}')">` : `<div class="w-10 h-10 bg-emerald-100 text-emerald-700 rounded-full flex items-center justify-center font-extrabold text-sm cursor-pointer" onclick="viewUserProfile('${d.merchant_id}')">🏪</div>`}
@@ -870,15 +936,22 @@
                         </div>
                         <span class="bg-orange-100 text-orange-800 text-[10px] font-extrabold px-2 py-1 rounded-full">⚡ عرض سريع</span>
                       </div>
+
+                      ${d.image_url ? `<img src="${d.image_url}" class="w-full h-40 object-cover rounded-xl border">` : ''}
+
                       <div>
                         <h3 class="font-extrabold text-sm text-gray-900 mt-1">${d.title}</h3>
                         ${d.description ? `<p class="text-xs text-gray-600 mt-1">${d.description}</p>` : ''}
                       </div>
-                      <div class="flex items-center justify-between pt-2 border-t border-gray-100">
-                        <div class="text-base font-extrabold text-orange-600">${Number(d.price).toLocaleString()} دج</div>
-                        <div class="flex gap-1.5">
-                          <button onclick="openDealOrderModal('${d.id}', '${d.title}', '${d.merchant_id}')" class="bg-orange-600 hover:bg-orange-700 text-white px-3 py-1.5 rounded-lg text-xs font-bold shadow">🛒 اطلب هذا الغرض</button>
-                        </div>
+
+                      <div class="bg-gray-50 p-2.5 rounded-xl border border-gray-100 text-xs space-y-1">
+                        <div class="font-extrabold text-emerald-800">الأسعار المتوفرة:</div>
+                        ${(d.tiers || []).map(t => `<div class="flex justify-between text-gray-700"><span>${t.label}:</span><span class="font-extrabold text-orange-600">${Number(t.price).toLocaleString()} دج</span></div>`).join('')}
+                        <div class="text-[11px] text-gray-500 pt-1 border-t">تكلفة التوصيل: ${Number(d.delivery_fee || 0).toLocaleString()} دج</div>
+                      </div>
+
+                      <div class="pt-1">
+                        <button onclick='openDealOrderModal(${JSON.stringify(d)})' class="w-full bg-orange-600 hover:bg-orange-700 text-white py-2.5 rounded-xl text-xs font-extrabold shadow">🛒 اطلب هذا الغرض الآن</button>
                       </div>
                     </div>`;
                 }).join('')
@@ -888,13 +961,25 @@
         </div>`;
     }
 
+    function addDealTierRow() {
+      dealTiers.push({ label: '', price: '' });
+      renderCurrentTab();
+    }
+
+    function removeDealTierRow(idx) {
+      dealTiers.splice(idx, 1);
+      renderCurrentTab();
+    }
+
     async function publishFlashDeal() {
       const title = document.getElementById('deal-title').value.trim();
       const description = document.getElementById('deal-desc').value.trim();
-      const price = document.getElementById('deal-price').value;
+      const deliveryFee = Number(document.getElementById('deal-delivery-fee').value || 0);
       const hoursDuration = Number(document.getElementById('deal-duration').value);
 
-      if (!title || !price) return showToast('يرجى كتابة عنوان العرض والسعر', true);
+      if (!title) return showToast('يرجى كتابة عنوان الغرض أو العرض', true);
+      const validTiers = dealTiers.filter(t => t.label && t.price);
+      if (validTiers.length === 0) return showToast('يرجى تحديد سعر واحد على الأقل للكمية', true);
 
       const expiresAt = new Date();
       expiresAt.setHours(expiresAt.getHours() + hoursDuration);
@@ -903,19 +988,21 @@
         merchant_id: currentProfile.id,
         title,
         description,
-        price: Number(price),
+        delivery_fee: deliveryFee,
+        tiers: validTiers,
+        image_url: dealImageBase64,
         category: currentProfile.category || 'supermarket',
         wilaya: currentProfile.wilaya,
+        duration_hours: hoursDuration,
         expires_at: expiresAt.toISOString()
       });
 
       if (error) {
         showToast('خطأ في نشر العرض: ' + error.message, true);
       } else {
-        showToast('⚡ تم نشر العرض السريع بنجاح!');
-        document.getElementById('deal-title').value = '';
-        document.getElementById('deal-desc').value = '';
-        document.getElementById('deal-price').value = '';
+        showToast('⚡ تم نشر العرض السريع المتقدم بنجاح!');
+        dealImageBase64 = null;
+        dealTiers = [{ label: '1 وحدة', price: '' }];
         await loadAllData();
       }
     }
@@ -930,12 +1017,43 @@
       }
     }
 
-    function openDealOrderModal(dealId, title, merchantId) {
-      document.getElementById('modal-deal-id').value = dealId;
-      document.getElementById('modal-merchant-id').value = merchantId;
-      document.getElementById('modal-deal-title').textContent = `طلب: ${title}`;
+    function openDealOrderModal(dealObj) {
+      activeDealForModal = dealObj;
+      document.getElementById('modal-deal-id').value = dealObj.id;
+      document.getElementById('modal-merchant-id').value = dealObj.merchant_id;
+      document.getElementById('modal-deal-title').textContent = `طلب: ${dealObj.title}`;
       document.getElementById('deal-order-phone').value = currentProfile.phone || '';
+
+      const imgCont = document.getElementById('modal-deal-image-container');
+      const imgEl = document.getElementById('modal-deal-img');
+      if (dealObj.image_url) {
+        imgEl.src = dealObj.image_url;
+        imgCont.classList.remove('hidden');
+      } else {
+        imgCont.classList.add('hidden');
+      }
+
+      const tierSelect = document.getElementById('modal-deal-tier');
+      tierSelect.innerHTML = (dealObj.tiers || []).map((t, idx) => `
+        <option value="${idx}" data-price="${t.price}">${t.label} - ${Number(t.price).toLocaleString()} دج</option>
+      `).join('');
+
+      updateModalDealPrice();
       document.getElementById('deal-order-modal').classList.remove('hidden');
+    }
+
+    function updateModalDealPrice() {
+      if (!activeDealForModal) return;
+      const tierSelect = document.getElementById('modal-deal-tier');
+      const selectedOption = tierSelect.options[tierSelect.selectedIndex];
+      if (!selectedOption) return;
+
+      const basePrice = Number(selectedOption.getAttribute('data-price') || 0);
+      const deliveryType = document.getElementById('deal-order-delivery').value;
+      const deliveryFee = deliveryType === 'delivery' ? Number(activeDealForModal.delivery_fee || 0) : 0;
+      const total = basePrice + deliveryFee;
+
+      document.getElementById('modal-calculated-price').textContent = `السعر الإجمالي: ${Number(total).toLocaleString()} دج (${deliveryType === 'delivery' ? 'شامل التوصيل ' + deliveryFee + ' دج' : 'استلام من المحل'})`;
     }
 
     function closeDealOrderModal() {
@@ -943,22 +1061,26 @@
     }
 
     async function submitDealOrder() {
-      const merchantId = document.getElementById('modal-merchant-id').value;
-      const dealTitle = document.getElementById('modal-deal-title').textContent;
-      const qty = document.getElementById('deal-order-qty').value.trim() || '1';
+      if (!activeDealForModal) return;
+      const tierSelect = document.getElementById('modal-deal-tier');
+      const selectedOption = tierSelect.options[tierSelect.selectedIndex];
+      const tierLabel = selectedOption ? selectedOption.textContent : 'وحدة 1';
+      const basePrice = Number(selectedOption ? selectedOption.getAttribute('data-price') : 0);
+      
       const deliveryType = document.getElementById('deal-order-delivery').value;
+      const deliveryFee = deliveryType === 'delivery' ? Number(activeDealForModal.delivery_fee || 0) : 0;
+      const totalPrice = basePrice + deliveryFee;
       const phone = document.getElementById('deal-order-phone').value.trim();
 
       if (!phone) return showToast('يرجى كتابة رقم الهاتف', true);
 
-      // إنشاء طلب تسعيرة تلقائي خاص بهذا العرض السريع ليصل للتاجر مباشرة
       const { error } = await sb.from('quote_requests').insert({
         customer_id: currentProfile.id,
-        category: 'supermarket',
+        category: activeDealForModal.category || 'supermarket',
         wilaya: currentProfile.wilaya,
         municipality: currentProfile.municipality || 'وسط المدينة',
-        title: dealTitle,
-        items: [{ name: dealTitle, qty: qty }],
+        title: `[عرض سريع] ${activeDealForModal.title} (${tierLabel})`,
+        items: [{ name: activeDealForModal.title, qty: tierLabel, price: basePrice }],
         delivery_type: deliveryType,
         latitude: currentProfile.latitude || null,
         longitude: currentProfile.longitude || null,
@@ -998,7 +1120,7 @@
 
               ${customerLat && customerLon ? `
                 <div>
-                  <a href="https://maps.google.com/?q=${customerLat},${customerLon}" target="_blank" class="block w-full bg-blue-600 text-white py-2 rounded-xl text-xs font-bold text-center shadow">
+                  <a href="https://maps.google.com/?q=${customerLat},${customerLon}" target="_blank" class="block w-full bg-blue-600 text-white py-2.5 rounded-xl text-xs font-bold text-center shadow">
                     🗺️ اضغط هنا لتوجيهك مباشرة لموقع الزبون في Google Maps
                   </a>
                 </div>` : '<div class="text-xs text-amber-600 font-bold">⚠️ موقع الزبون غير مسجل بدقة</div>'}
@@ -1062,7 +1184,7 @@
             <div class="bg-emerald-50/60 p-3 rounded-xl border border-emerald-100 flex items-center justify-between">
               <div>
                 <div class="text-xs font-bold text-emerald-900">📍 تحديد موقعك المباشر بدقة</div>
-                <div class="text-[11px] text-emerald-700">لتسهيل التوصيل المنزلي بدقة عبر خريطة Google Maps</div>
+                <div class="text-[11px] text-emerald-700">لتسهيل التوصيل المنزلي عبر خريطة Google Maps</div>
               </div>
               <button type="button" onclick="requestUserGPSLocation(false)" class="bg-emerald-600 text-white px-3 py-2 rounded-xl text-xs font-bold">تحديد الموقع</button>
             </div>
@@ -1390,7 +1512,7 @@
       const phone = document.getElementById('edit-phone').value.trim();
       const wilaya = document.getElementById('edit-wilaya').value;
       const municipality = document.getElementById('edit-municipality').value.trim();
-      const shopName = document.getElementById('edit-shop') ? document.getElementById('edit-shop').value.trim() : null;
+      const shopName = document.getElementById('edit-shop') ? document.getElementById('edit-shop'].value.trim() : null;
 
       if (!fullName) return showToast('يرجى كتابة الاسم الكامل', true);
 
