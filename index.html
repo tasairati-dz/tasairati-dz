@@ -1309,6 +1309,11 @@
           const waPhone = formatDzWhatsApp(customer.phone || '');
           const customerLat = req.latitude || customer.latitude;
           const customerLon = req.longitude || customer.longitude;
+          const acceptedOffer = (req.quote_offers || []).find(o => o.merchant_id === currentProfile.id && o.status === 'accepted')
+                             || (req.quote_offers || []).find(o => o.status === 'accepted');
+          const itemsToDisplay = (acceptedOffer && acceptedOffer.priced_items && acceptedOffer.priced_items.length > 0)
+            ? acceptedOffer.priced_items
+            : (req.items || []);
 
           return `
             <div class="bg-white rounded-2xl p-4 shadow-sm border border-emerald-300 space-y-3">
@@ -1319,6 +1324,27 @@
                   <p class="text-[11px] text-emerald-700 font-bold mt-0.5">${req.delivery_type === 'delivery' ? '🚚 توصيل للمنزل' : '🏪 استلام من المحل'}</p>
                 </div>
                 <span class="bg-emerald-100 text-emerald-800 text-[10px] font-extrabold px-2.5 py-1 rounded-full">✅ مؤكد</span>
+              </div>
+
+              <div class="bg-gray-50 p-3 rounded-xl border border-gray-200 text-xs space-y-1.5">
+                <div class="font-extrabold text-gray-800 border-b border-gray-200 pb-1">🛒 الأغراض المطلوبة والأسعار:</div>
+                ${itemsToDisplay.length === 0 ? `<div class="text-gray-400">لا توجد تفاصيل مواد مسجلة</div>` :
+                  itemsToDisplay.map(it => `
+                    <div class="flex justify-between items-center text-gray-700">
+                      <span>• ${it.name} <span class="text-emerald-700 font-bold">(${it.qty || '1'})</span></span>
+                      <span class="font-extrabold text-gray-900">${it.price ? Number(it.price).toLocaleString() + ' دج' : '-'}</span>
+                    </div>
+                  `).join('')}
+                ${acceptedOffer ? `
+                  <div class="flex justify-between text-gray-600 pt-1.5 border-t border-gray-200">
+                    <span>سعر التوصيل:</span>
+                    <span class="font-bold">${Number(acceptedOffer.delivery_fee || 0).toLocaleString()} دج</span>
+                  </div>
+                  <div class="flex justify-between text-emerald-800 font-extrabold text-sm pt-1 border-t border-gray-200">
+                    <span>المبلغ الإجمالي المستحق:</span>
+                    <span>${Number(acceptedOffer.total_price || 0).toLocaleString()} دج</span>
+                  </div>
+                ` : ''}
               </div>
 
               ${customerLat && customerLon ? `
