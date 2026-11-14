@@ -94,7 +94,7 @@
         <input type="tel" id="deal-order-phone" dir="ltr" class="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-xs text-right outline-none" placeholder="0550...">
       </div>
 
-      <button onclick="submitDealOrder()" class="w-full bg-orange-600 text-white font-bold py-3 rounded-xl text-xs shadow">
+      <button id="submit-deal-btn" onclick="submitDealOrder()" class="w-full bg-orange-600 text-white font-bold py-3 rounded-xl text-xs shadow">
         إرسال الطلب للتاجر فوراً 🚀
       </button>
     </div>
@@ -255,9 +255,11 @@
     let currentTab = 'home';
     let selectedCategory = 'supermarket';
     let draftItems = [];
-    let draftAvatarBase64 = null;
-    let editAvatarBase64 = null;
-    let dealImageBase64 = null;
+    let draftReqTitle = '';
+    let draftDeliveryType = 'delivery';
+    let draftAvatarUrl = null;
+    let editAvatarUrl = null;
+    let dealImageUrl = null;
     let myRequests = [];
     let openRequests = [];
     let flashDeals = [];
@@ -271,12 +273,24 @@
     let dealTiers = [{ label: '1 وحدة', price: '' }];
     let activeDealForModal = null;
 
-    function formatDzWhatsApp(phone) {
+    // توحيد صيغة رقم الهاتف الجزائري (05 / 06 / 07)
+    function normalizeDzPhone(phone) {
       if (!phone) return '';
       let clean = phone.replace(/\D/g, '');
-      if (clean.startsWith('0')) clean = '213' + clean.substring(1);
-      else if (!clean.startsWith('213')) clean = '213' + clean;
+      if (clean.startsWith('00213')) clean = '0' + clean.substring(5);
+      else if (clean.startsWith('213')) clean = '0' + clean.substring(3);
+      else if (clean.length === 9 && /^[567]/.test(clean)) clean = '0' + clean;
       return clean;
+    }
+
+    function isValidDzPhone(phone) {
+      return /^0[567]\d{8}$/.test(phone);
+    }
+
+    function formatDzWhatsApp(phone) {
+      const norm = normalizeDzPhone(phone);
+      if (!norm) return '';
+      return norm.startsWith('0') ? '213' + norm.substring(1) : norm;
     }
 
     function calculateDistance(lat1, lon1, lat2, lon2) {
@@ -330,6 +344,37 @@
       });
     }
 
+    // ضغط الصورة ومحاولة رفعها إلى Supabase Storage (bucket: uploads) مع بديل تلقائي Base64
+    function processAndUploadImage(file, maxWidth, quality, folder, callback) {
+      const reader = new FileReader();
+      reader.onload = function(ev) {
+        const img = new Image();
+        img.onload = function() {
+          const canvas = document.createElement('canvas');
+          const scale = Math.min(1, maxWidth / img.width);
+          canvas.width = img.width * scale;
+          canvas.height = img.height * scale;
+          canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
+          const base64Data = canvas.toDataURL('image/jpeg', quality);
+
+          canvas.toBlob(async (blob) => {
+            if (!blob || !sb) return callback(base64Data);
+            try {
+              const fileName = `${folder}/${Date.now()}_${Math.random().toString(36).substring(2, 8)}.jpg`;
+              const { error } = await sb.storage.from('uploads').upload(fileName, blob, { contentType: 'image/jpeg', upsert: true });
+              if (!error) {
+                const { data: pub } = sb.storage.from('uploads').getPublicUrl(fileName);
+                if (pub && pub.publicUrl) return callback(pub.publicUrl);
+              }
+            } catch (e) {}
+            callback(base64Data);
+          }, 'image/jpeg', quality);
+        };
+        img.src = ev.target.result;
+      };
+      reader.readAsDataURL(file);
+    }
+
     async function requestNotificationPermission() {
       if (!("Notification" in window)) return showToast('متصفحك لا يدعم الإشعارات الفورية', true);
       const permission = await Notification.requestPermission();
@@ -338,7 +383,7 @@
     }
 
     function triggerBackgroundNotification(title, body) {
-      if (Notification.permission === "granted") {
+      if ("Notification" in window && Notification.permission === "granted") {
         try { new Notification(title, { body }); } catch (e) {}
       }
     }
@@ -355,12 +400,12 @@
             currentProfile.latitude = lat;
             currentProfile.longitude = lon;
             !silent && showToast('✅ تم تثبيت موقعك المباشر في الحساب بنجاح!');
-            if (currentTab === 'profile') renderCurrentTab();
+            if (currentTab === 'profile' || currentTab === 'merchants') renderCurrentTab();
           } else {
             !silent && showToast('خطأ في حفظ الموقع بالقاعدة', true);
           }
         }
-      }, (error) => {
+      }, () => {
         !silent && showToast('يرجى السماح بالوصول للموقع من المتصفح', true);
       }, { timeout: 10000 });
     }
@@ -389,6 +434,7 @@
         : `<div class="w-20 h-20 bg-emerald-100 text-emerald-700 rounded-full mx-auto flex items-center justify-center text-3xl font-extrabold mb-2">${isMer ? '🏪' : '👤'}</div>`;
 
       const waPhone = formatDzWhatsApp(userData.phone || '');
+      const catLabel = CATEGORIES[userData.category]?.name || userData.category || '-';
 
       document.getElementById('modal-profile-body').innerHTML = `
         ${avatarH}
@@ -401,7 +447,7 @@
         
         <div class="mt-3 text-right space-y-1.5 bg-gray-50 p-3 rounded-xl text-xs">
           <div class="flex justify-between"><span class="text-gray-400">الاسم:</span><span class="font-bold">${userData.full_name}</span></div>
-          ${isMer ? `<div class="flex justify-between"><span class="text-gray-400">التخصص:</span><span class="font-bold">${userData.category || '-'}</span></div>` : ''}
+          ${isMer ? `<div class="flex justify-between"><span class="text-gray-400">التخصص:</span><span class="font-bold">${catLabel}</span></div>` : ''}
           <div class="flex justify-between"><span class="text-gray-400">المنطقة:</span><span class="font-bold">${userData.wilaya} ${userData.municipality ? '- ' + userData.municipality : ''}</span></div>
         </div>
 
@@ -466,72 +512,42 @@
     function handleAvatarUpload(e) {
       const file = e.target.files[0];
       if (!file) return;
-      const reader = new FileReader();
-      reader.onload = function(ev) {
-        const img = new Image();
-        img.onload = function() {
-          const canvas = document.createElement('canvas');
-          const maxW = 300;
-          const scale = Math.min(1, maxW / img.width);
-          canvas.width = img.width * scale;
-          canvas.height = img.height * scale;
-          canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
-          draftAvatarBase64 = canvas.toDataURL('image/jpeg', 0.6);
-          document.getElementById('avatar-preview-container').innerHTML = `<img src="${draftAvatarBase64}" class="w-full h-full object-cover">`;
-        };
-        img.src = ev.target.result;
-      };
-      reader.readAsDataURL(file);
+      processAndUploadImage(file, 300, 0.65, 'avatars', (urlOrData) => {
+        draftAvatarUrl = urlOrData;
+        document.getElementById('avatar-preview-container').innerHTML = `<img src="${urlOrData}" class="w-full h-full object-cover">`;
+      });
     }
 
     function handleEditAvatarUpload(e) {
       const file = e.target.files[0];
       if (!file) return;
-      const reader = new FileReader();
-      reader.onload = function(ev) {
-        const img = new Image();
-        img.onload = function() {
-          const canvas = document.createElement('canvas');
-          const maxW = 300;
-          const scale = Math.min(1, maxW / img.width);
-          canvas.width = img.width * scale;
-          canvas.height = img.height * scale;
-          canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
-          editAvatarBase64 = canvas.toDataURL('image/jpeg', 0.6);
-          const previewEl = document.getElementById('edit-avatar-preview');
-          if (previewEl) previewEl.innerHTML = `<img src="${editAvatarBase64}" class="w-full h-full object-cover">`;
-        };
-        img.src = ev.target.result;
-      };
-      reader.readAsDataURL(file);
+      processAndUploadImage(file, 300, 0.65, 'avatars', (urlOrData) => {
+        editAvatarUrl = urlOrData;
+        const previewEl = document.getElementById('edit-avatar-preview');
+        if (previewEl) previewEl.innerHTML = `<img src="${urlOrData}" class="w-full h-full object-cover">`;
+      });
     }
 
     function handleDealImageUpload(e) {
       const file = e.target.files[0];
       if (!file) return;
-      const reader = new FileReader();
-      reader.onload = function(ev) {
-        const img = new Image();
-        img.onload = function() {
-          const canvas = document.createElement('canvas');
-          const maxW = 500;
-          const scale = Math.min(1, maxW / img.width);
-          canvas.width = img.width * scale;
-          canvas.height = img.height * scale;
-          canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
-          dealImageBase64 = canvas.toDataURL('image/jpeg', 0.7);
-          const previewEl = document.getElementById('deal-image-preview');
-          if (previewEl) previewEl.innerHTML = `<img src="${dealImageBase64}" class="w-20 h-20 rounded-xl object-cover border">`;
-        };
-        img.src = ev.target.result;
-      };
-      reader.readAsDataURL(file);
+      processAndUploadImage(file, 500, 0.7, 'deals', (urlOrData) => {
+        dealImageUrl = urlOrData;
+        const previewEl = document.getElementById('deal-image-preview');
+        if (previewEl) previewEl.innerHTML = `<img src="${urlOrData}" class="w-20 h-20 rounded-xl object-cover border">`;
+      });
     }
 
     async function handleAuth(e) {
       e.preventDefault();
-      const phone = document.getElementById('auth-phone').value.trim().replace(/\s+/g, '');
+      const rawPhone = document.getElementById('auth-phone').value.trim();
+      const phone = normalizeDzPhone(rawPhone);
       const password = document.getElementById('auth-password').value;
+
+      if (!isValidDzPhone(phone)) {
+        return showToast('يرجى إدخال رقم هاتف جزائري صحيح (يبدأ بـ 05 أو 06 أو 07)', true);
+      }
+
       const fakeEmail = `${phone}@tasairati.dz`;
       const btn = document.getElementById('auth-submit-btn');
       btn.disabled = true;
@@ -567,7 +583,7 @@
             municipality: municipality,
             shop_name: role === 'merchant' ? shopName : null,
             category: role === 'merchant' ? category : null,
-            avatar_url: draftAvatarBase64
+            avatar_url: draftAvatarUrl
           });
           if (profErr) throw new Error('خطأ في حفظ الملف: ' + profErr.message);
 
@@ -619,9 +635,7 @@
         .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'quote_requests' }, async payload => {
           const req = payload.new;
           if (currentProfile.role === 'merchant' && (showAllWilayas || req.wilaya === currentProfile.wilaya) && (!currentProfile.category || req.category === currentProfile.category)) {
-            
             await checkAndAutoRespondInventory(req);
-
             triggerBackgroundNotification("📦 طلب تسعيرة جديد!", `طلب جديد في ${req.wilaya} (${req.title})`);
             loadAllData();
           }
@@ -631,6 +645,16 @@
 
     async function checkAndAutoRespondInventory(req) {
       if (!req.items || req.items.length === 0) return;
+
+      // التحقق من عدم وجود عرض مسبق لنفس التاجر على نفس الطلب
+      const { data: existingOffer } = await sb
+        .from('quote_offers')
+        .select('id')
+        .eq('request_id', req.id)
+        .eq('merchant_id', currentProfile.id)
+        .maybeSingle();
+      if (existingOffer) return;
+
       const { data: inv } = await sb.from('merchant_inventory').select('*').eq('merchant_id', currentProfile.id);
       if (!inv || inv.length === 0) return;
 
@@ -639,7 +663,6 @@
       let allFound = true;
 
       for (let item of req.items) {
-        // مطابقة ذكية مرنة (تحقق جزئي ليقبل أي تقارب في اسم المادة)
         const foundMatch = inv.find(i => 
           item.name.toLowerCase().includes(i.item_name.toLowerCase()) || 
           i.item_name.toLowerCase().includes(item.name.toLowerCase()) ||
@@ -723,9 +746,13 @@
 
     async function loadAllData() {
       try {
-        await sb.from('flash_deals').delete().lt('expires_at', new Date().toISOString());
-
-        const { data: dealsData } = await sb.from('flash_deals').select('*, profiles(shop_name, phone, avatar_url, wilaya, municipality, latitude, longitude)').eq('wilaya', currentProfile.wilaya).order('created_at', { ascending: false });
+        const nowIso = new Date().toISOString();
+        const { data: dealsData } = await sb
+          .from('flash_deals')
+          .select('*, profiles(shop_name, phone, avatar_url, wilaya, municipality, latitude, longitude)')
+          .eq('wilaya', currentProfile.wilaya)
+          .gt('expires_at', nowIso)
+          .order('created_at', { ascending: false });
         flashDeals = dealsData || [];
 
         const { data: merchData } = await sb.from('profiles').select('*').eq('role', 'merchant');
@@ -852,7 +879,7 @@
       const itemName = document.getElementById('inv-item-name').value.trim();
       const unitPrice = Number(document.getElementById('inv-item-price').value);
 
-      if (!itemName || !unitPrice) return showToast('يرجى كتابة اسم المادة والسعر بشكل صحيح', true);
+      if (!itemName || unitPrice <= 0) return showToast('يرجى كتابة اسم المادة والسعر بشكل صحيح', true);
 
       const { error } = await sb.from('merchant_inventory').insert({
         merchant_id: currentProfile.id,
@@ -881,11 +908,12 @@
     }
 
     function renderMerchantsSearchView() {
+      const hasUserGPS = Boolean(currentProfile.latitude && currentProfile.longitude);
       let filtered = allMerchants.filter(m => {
-        const matchesName = (m.shop_name || m.full_name).toLowerCase().includes(merchantSearchQuery.toLowerCase());
+        const matchesName = (m.shop_name || m.full_name || '').toLowerCase().includes(merchantSearchQuery.toLowerCase());
         const matchesCat = merchantCategoryFilter === 'all' || m.category === merchantCategoryFilter;
         let matchesDist = true;
-        if (merchantDistanceFilter !== 'all' && currentProfile.latitude && currentProfile.longitude && m.latitude && m.longitude) {
+        if (merchantDistanceFilter !== 'all' && hasUserGPS && m.latitude && m.longitude) {
           const distNum = calculateDistanceNumeric(currentProfile.latitude, currentProfile.longitude, m.latitude, m.longitude);
           if (merchantDistanceFilter === '1' && distNum > 1) matchesDist = false;
           if (merchantDistanceFilter === '50' && distNum > 50) matchesDist = false;
@@ -899,14 +927,14 @@
           <div class="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 space-y-3">
             <h2 class="font-extrabold text-sm text-gray-800">🔍 بحث عن المحلات (ماركت بلاي المحلات)</h2>
             <div class="flex gap-2">
-              <input type="text" id="merchant-search-input" value="${merchantSearchQuery}" placeholder="ابحث باسم المحل..." class="flex-1 px-3.5 py-2.5 rounded-xl border border-gray-200 text-xs outline-none">
-              <button onclick="merchantSearchQuery = document.getElementById('merchant-search-input').value; renderMerchantsSearchView()" class="bg-emerald-600 text-white px-4 py-2.5 rounded-xl text-xs font-bold shadow">بحث 🔍</button>
+              <input type="text" id="merchant-search-input" value="${merchantSearchQuery}" onkeydown="if(event.key==='Enter'){merchantSearchQuery=this.value;renderCurrentTab();}" placeholder="ابحث باسم المحل..." class="flex-1 px-3.5 py-2.5 rounded-xl border border-gray-200 text-xs outline-none">
+              <button onclick="merchantSearchQuery = document.getElementById('merchant-search-input').value; renderCurrentTab()" class="bg-emerald-600 text-white px-4 py-2.5 rounded-xl text-xs font-bold shadow">بحث 🔍</button>
             </div>
             
             <div class="grid grid-cols-2 gap-2">
               <div>
                 <label class="block text-[11px] font-bold text-gray-600 mb-1">فئة المحل</label>
-                <select onchange="merchantCategoryFilter = this.value; renderMerchantsSearchView()" class="w-full px-3 py-2 rounded-xl border border-gray-200 text-xs bg-white outline-none">
+                <select onchange="merchantCategoryFilter = this.value; renderCurrentTab()" class="w-full px-3 py-2 rounded-xl border border-gray-200 text-xs bg-white outline-none">
                   <option value="all" ${merchantCategoryFilter === 'all' ? 'selected' : ''}>كل الفئات</option>
                   <option value="supermarket" ${merchantCategoryFilter === 'supermarket' ? 'selected' : ''}>سوبرماركت</option>
                   <option value="building" ${merchantCategoryFilter === 'building' ? 'selected' : ''}>مواد بناء</option>
@@ -916,7 +944,7 @@
               </div>
               <div>
                 <label class="block text-[11px] font-bold text-gray-600 mb-1">المسافة القصوى</label>
-                <select onchange="merchantDistanceFilter = this.value; renderMerchantsSearchView()" class="w-full px-3 py-2 rounded-xl border border-gray-200 text-xs bg-white outline-none">
+                <select onchange="merchantDistanceFilter = this.value; renderCurrentTab()" class="w-full px-3 py-2 rounded-xl border border-gray-200 text-xs bg-white outline-none">
                   <option value="all" ${merchantDistanceFilter === 'all' ? 'selected' : ''}>أي مسافة</option>
                   <option value="1" ${merchantDistanceFilter === '1' ? 'selected' : ''}>أقل من 1 كلم</option>
                   <option value="50" ${merchantDistanceFilter === '50' ? 'selected' : ''}>أقل من 50 كلم</option>
@@ -924,13 +952,19 @@
                 </select>
               </div>
             </div>
+            ${merchantDistanceFilter !== 'all' && !hasUserGPS ? `
+              <div class="bg-amber-50 border border-amber-200 text-amber-800 p-2.5 rounded-xl text-[11px] flex items-center justify-between">
+                <span>⚠️ فعّل موقعك لحساب المسافة بدقة</span>
+                <button onclick="requestUserGPSLocation(false)" class="bg-amber-600 text-white px-2.5 py-1 rounded-lg font-bold">تحديد موقعي</button>
+              </div>
+            ` : ''}
           </div>
 
           <div class="space-y-3">
             ${filtered.length === 0 ? `<p class="text-xs text-gray-400 text-center py-6 bg-white rounded-2xl">لا توجد محلات مطابقة لبحثك</p>` :
               filtered.map(m => {
                 let distText = '';
-                if (currentProfile.latitude && currentProfile.longitude && m.latitude && m.longitude) {
+                if (hasUserGPS && m.latitude && m.longitude) {
                   const d = calculateDistance(currentProfile.latitude, currentProfile.longitude, m.latitude, m.longitude);
                   if (d) distText = `<span class="text-xs text-emerald-600 font-bold">📍 على بعد ${d}</span>`;
                 }
@@ -960,6 +994,16 @@
         </div>`;
     }
 
+    function renderDealTiersHTML() {
+      return dealTiers.map((tier, idx) => `
+        <div class="flex gap-2 items-center">
+          <input type="text" value="${tier.label}" oninput="dealTiers[${idx}].label=this.value" placeholder="مثال: 1 علبة" class="flex-1 px-3 py-2 rounded-lg border border-gray-200 text-xs bg-white outline-none">
+          <input type="number" value="${tier.price}" oninput="dealTiers[${idx}].price=this.value" placeholder="السعر (دج)" class="w-28 px-3 py-2 rounded-lg border border-gray-200 text-xs bg-white outline-none font-bold">
+          ${idx > 0 ? `<button type="button" onclick="removeDealTierRow(${idx})" class="text-red-500 font-bold px-2">✕</button>` : ''}
+        </div>
+      `).join('');
+    }
+
     function renderFlashDealsView() {
       const isMerchant = currentProfile.role === 'merchant';
       const myDeals = flashDeals.filter(d => d.merchant_id === currentProfile.id);
@@ -968,7 +1012,7 @@
         <div class="space-y-4">
           <div class="bg-gradient-to-r from-amber-500 to-orange-600 rounded-2xl p-4 text-white shadow-md">
             <h2 class="font-extrabold text-base flex items-center gap-2"><span>⚡</span> العروض السريعة والخصومات اليومية</h2>
-            <p class="text-xs text-amber-100 mt-1">تُحذف العروض تلقائياً بعد انتهاء مدتها أو يدوياً من التاجر</p>
+            <p class="text-xs text-amber-100 mt-1">تختفي العروض تلقائياً بعد انتهاء مدتها أو عند حذفها يدوياً من التاجر</p>
           </div>
 
           ${isMerchant ? `
@@ -979,7 +1023,9 @@
               <textarea id="deal-desc" rows="2" placeholder="تفاصيل العرض..." class="w-full px-3.5 py-2.5 rounded-xl border border-gray-200 text-xs outline-none"></textarea>
               
               <div class="flex items-center gap-3 bg-gray-50 p-2.5 rounded-xl border border-gray-200">
-                <div id="deal-image-preview" class="w-16 h-16 bg-gray-100 rounded-xl flex items-center justify-center text-xs text-gray-400">صورة الغرض</div>
+                <div id="deal-image-preview" class="w-16 h-16 bg-gray-100 rounded-xl flex items-center justify-center text-xs text-gray-400 overflow-hidden">
+                  ${dealImageUrl ? `<img src="${dealImageUrl}" class="w-full h-full object-cover">` : 'صورة الغرض'}
+                </div>
                 <div class="flex-1">
                   <label class="block text-xs font-bold text-gray-700 mb-1">صورة الغرض (اختياري)</label>
                   <input type="file" accept="image/*" onchange="handleDealImageUpload(event)" class="text-xs text-gray-500 file:py-1.5 file:px-2.5 file:rounded-lg file:border-0 file:text-xs file:font-bold file:bg-emerald-50 file:text-emerald-700">
@@ -988,24 +1034,18 @@
 
               <div class="bg-gray-50 p-3 rounded-xl border border-gray-200 space-y-2">
                 <div class="flex justify-between items-center">
-                  <label class="text-xs font-extrabold text-gray-700">الأسعار حسب الكميات (مثال: 1 علبة بـ 150دج، 2 بـ 250دج):</label>
-                  <button type="button" onclick="addDealTierRow()" class="bg-emerald-600 text-white px-2.5 py-1 rounded-lg text-xs font-bold">+ إضافة كمية أخرى</button>
+                  <label class="text-xs font-extrabold text-gray-700">الأسعار حسب الكميات (مثال: 1 علبة بـ 150دج):</label>
+                  <button type="button" onclick="addDealTierRow()" class="bg-emerald-600 text-white px-2.5 py-1 rounded-lg text-xs font-bold">+ إضافة كمية</button>
                 </div>
                 <div id="deal-tiers-container" class="space-y-2">
-                  ${dealTiers.map((tier, idx) => `
-                    <div class="flex gap-2 items-center">
-                      <input type="text" value="${tier.label}" oninput="dealTiers[${idx}].label=this.value" placeholder="مثال: 1 علبة" class="flex-1 px-3 py-2 rounded-lg border border-gray-200 text-xs bg-white outline-none">
-                      <input type="number" value="${tier.price}" oninput="dealTiers[${idx}].price=this.value" placeholder="السعر (دج)" class="w-28 px-3 py-2 rounded-lg border border-gray-200 text-xs bg-white outline-none font-bold">
-                      ${idx > 0 ? `<button type="button" onclick="removeDealTierRow(${idx})" class="text-red-500 font-bold px-2">✕</button>` : ''}
-                    </div>
-                  `).join('')}
+                  ${renderDealTiersHTML()}
                 </div>
               </div>
 
               <div class="grid grid-cols-2 gap-2">
                 <div>
                   <label class="block text-[11px] font-bold text-gray-700 mb-1">سعر التوصيل الإضافي (دج)</label>
-                  <input id="deal-delivery-fee" type="number" placeholder="مثال: 200 دج" class="w-full px-3.5 py-2.5 rounded-xl border border-gray-200 text-xs outline-none">
+                  <input id="deal-delivery-fee" type="number" placeholder="مثال: 200" class="w-full px-3.5 py-2.5 rounded-xl border border-gray-200 text-xs outline-none">
                 </div>
                 <div>
                   <label class="block text-[11px] font-bold text-gray-700 mb-1">مدة العرض</label>
@@ -1018,7 +1058,7 @@
                 </div>
               </div>
 
-              <button onclick="publishFlashDeal()" class="w-full bg-orange-600 hover:bg-orange-700 text-white font-bold py-3 rounded-xl text-xs shadow-sm">
+              <button id="publish-deal-btn" onclick="publishFlashDeal()" class="w-full bg-orange-600 hover:bg-orange-700 text-white font-bold py-3 rounded-xl text-xs shadow-sm">
                 نشر العرض الفوري الآن ⚡
               </button>
             </div>
@@ -1081,7 +1121,7 @@
                       </div>
 
                       <div class="pt-1">
-                        <button onclick='openDealOrderModal(${JSON.stringify(d)})' class="w-full bg-orange-600 hover:bg-orange-700 text-white py-2.5 rounded-xl text-xs font-extrabold shadow">🛒 اطلب هذا الغرض الآن</button>
+                        <button onclick="openDealOrderModal('${d.id}')" class="w-full bg-orange-600 hover:bg-orange-700 text-white py-2.5 rounded-xl text-xs font-extrabold shadow">🛒 اطلب هذا الغرض الآن</button>
                       </div>
                     </div>`;
                 }).join('')
@@ -1093,12 +1133,14 @@
 
     function addDealTierRow() {
       dealTiers.push({ label: '', price: '' });
-      renderCurrentTab();
+      const container = document.getElementById('deal-tiers-container');
+      if (container) container.innerHTML = renderDealTiersHTML();
     }
 
     function removeDealTierRow(idx) {
       dealTiers.splice(idx, 1);
-      renderCurrentTab();
+      const container = document.getElementById('deal-tiers-container');
+      if (container) container.innerHTML = renderDealTiersHTML();
     }
 
     async function publishFlashDeal() {
@@ -1108,37 +1150,42 @@
       const hoursDuration = Number(document.getElementById('deal-duration').value);
 
       if (!title) return showToast('يرجى كتابة عنوان الغرض أو العرض', true);
-      const validTiers = dealTiers.filter(t => t.label && t.price);
-      if (validTiers.length === 0) return showToast('يرجى تحديد سعر واحد على الأقل للكمية', true);
+      const validTiers = dealTiers.filter(t => t.label && Number(t.price) > 0);
+      if (validTiers.length === 0) return showToast('يرجى تحديد سعر واحد صحيح على الأقل للكمية', true);
 
-      const expiresAt = new Date();
-      expiresAt.setHours(expiresAt.getHours() + hoursDuration);
+      const btn = document.getElementById('publish-deal-btn');
+      if (btn) btn.disabled = true;
 
-      const { error } = await sb.from('flash_deals').insert({
-        merchant_id: currentProfile.id,
-        title,
-        description,
-        delivery_fee: deliveryFee,
-        tiers: validTiers,
-        image_url: dealImageBase64,
-        category: currentProfile.category || 'supermarket',
-        wilaya: currentProfile.wilaya,
-        duration_hours: hoursDuration,
-        expires_at: expiresAt.toISOString()
-      });
+      try {
+        const expiresAt = new Date();
+        expiresAt.setHours(expiresAt.getHours() + hoursDuration);
 
-      if (error) {
-        showToast('خطأ في نشر العرض: ' + error.message, true);
-        return;
+        const { error } = await sb.from('flash_deals').insert({
+          merchant_id: currentProfile.id,
+          title,
+          description,
+          delivery_fee: deliveryFee,
+          tiers: validTiers,
+          image_url: dealImageUrl,
+          category: currentProfile.category || 'supermarket',
+          wilaya: currentProfile.wilaya,
+          duration_hours: hoursDuration,
+          expires_at: expiresAt.toISOString()
+        });
+
+        if (error) {
+          showToast('خطأ في نشر العرض: ' + error.message, true);
+          return;
+        }
+
+        showToast('⚡ تم نشر العرض السريع بنجاح!');
+        dealImageUrl = null;
+        dealTiers = [{ label: '1 وحدة', price: '' }];
+        await loadAllData();
+        switchTab('deals');
+      } finally {
+        if (btn) btn.disabled = false;
       }
-
-      showToast('⚡ تم نشر العرض السريع بنجاح!');
-      dealImageBase64 = null;
-      dealTiers = [{ label: '1 وحدة', price: '' }];
-      document.getElementById('deal-title').value = '';
-      document.getElementById('deal-desc').value = '';
-      await loadAllData();
-      switchTab('deals');
     }
 
     async function deleteFlashDeal(dealId) {
@@ -1151,7 +1198,10 @@
       }
     }
 
-    function openDealOrderModal(dealObj) {
+    function openDealOrderModal(dealId) {
+      const dealObj = flashDeals.find(d => String(d.id) === String(dealId));
+      if (!dealObj) return showToast('تعذر العثور على تفاصيل العرض', true);
+
       activeDealForModal = dealObj;
       document.getElementById('modal-deal-id').value = dealObj.id;
       document.getElementById('modal-merchant-id').value = dealObj.merchant_id;
@@ -1179,10 +1229,11 @@
     function updateModalDealPrice() {
       if (!activeDealForModal) return;
       const tierSelect = document.getElementById('modal-deal-tier');
-      const selectedOption = tierSelect.options[tierSelect.selectedIndex];
-      if (!selectedOption) return;
+      const tierIdx = Number(tierSelect.value || 0);
+      const selectedTier = (activeDealForModal.tiers || [])[tierIdx];
+      if (!selectedTier) return;
 
-      const basePrice = Number(selectedOption.getAttribute('data-price') || 0);
+      const basePrice = Number(selectedTier.price || 0);
       const deliveryType = document.getElementById('deal-order-delivery').value;
       const deliveryFee = deliveryType === 'delivery' ? Number(activeDealForModal.delivery_fee || 0) : 0;
       const total = basePrice + deliveryFee;
@@ -1197,49 +1248,57 @@
     async function submitDealOrder() {
       if (!activeDealForModal) return;
       const tierSelect = document.getElementById('modal-deal-tier');
-      const selectedOption = tierSelect.options[tierSelect.selectedIndex];
-      const tierLabel = selectedOption ? selectedOption.textContent.split(' - ')[0] : 'وحدة 1';
-      const basePrice = Number(selectedOption ? selectedOption.getAttribute('data-price') : 0);
+      const tierIdx = Number(tierSelect.value || 0);
+      const selectedTier = (activeDealForModal.tiers || [])[tierIdx] || { label: '1 وحدة', price: 0 };
+      const tierLabel = selectedTier.label;
+      const basePrice = Number(selectedTier.price || 0);
       
       const deliveryType = document.getElementById('deal-order-delivery').value;
       const deliveryFee = deliveryType === 'delivery' ? Number(activeDealForModal.delivery_fee || 0) : 0;
       const totalPrice = basePrice + deliveryFee;
-      const phone = document.getElementById('deal-order-phone').value.trim();
+      const phone = normalizeDzPhone(document.getElementById('deal-order-phone').value.trim());
 
-      if (!phone) return showToast('يرجى كتابة رقم الهاتف', true);
+      if (!isValidDzPhone(phone)) return showToast('يرجى كتابة رقم هاتف جزائري صحيح', true);
 
-      const { error } = await sb.from('quote_requests').insert({
-        customer_id: currentProfile.id,
-        category: activeDealForModal.category || 'supermarket',
-        wilaya: activeDealForModal.profiles?.wilaya || currentProfile.wilaya,
-        municipality: currentProfile.municipality || 'وسط المدينة',
-        title: `[عرض سريع] ${activeDealForModal.title} (${tierLabel})`,
-        items: [{ name: activeDealForModal.title, qty: tierLabel, price: basePrice }],
-        delivery_type: deliveryType,
-        latitude: currentProfile.latitude || null,
-        longitude: currentProfile.longitude || null,
-        status: 'open'
-      });
+      const btn = document.getElementById('submit-deal-btn');
+      if (btn) btn.disabled = true;
 
-      if (error) {
-        showToast('خطأ في إرسال الطلب: ' + error.message, true);
-      } else {
-        const { data: reqData } = await sb.from('quote_requests').select('id').eq('customer_id', currentProfile.id).order('created_at', { ascending: false }).limit(1);
-        if (reqData && reqData.length > 0) {
+      try {
+        const { data: insertedReq, error } = await sb.from('quote_requests').insert({
+          customer_id: currentProfile.id,
+          category: activeDealForModal.category || 'supermarket',
+          wilaya: activeDealForModal.profiles?.wilaya || currentProfile.wilaya,
+          municipality: currentProfile.municipality || 'وسط المدينة',
+          title: `[عرض سريع] ${activeDealForModal.title} (${tierLabel})`,
+          items: [{ name: activeDealForModal.title, qty: tierLabel, price: basePrice }],
+          delivery_type: deliveryType,
+          latitude: currentProfile.latitude || null,
+          longitude: currentProfile.longitude || null,
+          status: 'accepted'
+        }).select('id').single();
+
+        if (error) {
+          showToast('خطأ في إرسال الطلب: ' + error.message, true);
+          return;
+        }
+
+        if (insertedReq && insertedReq.id) {
           await sb.from('quote_offers').insert({
-            request_id: reqData[0].id,
+            request_id: insertedReq.id,
             merchant_id: activeDealForModal.merchant_id,
             total_price: totalPrice,
             delivery_fee: deliveryFee,
             priced_items: [{ name: activeDealForModal.title, qty: tierLabel, price: basePrice }],
             status: 'accepted'
           });
-          await sb.from('quote_requests').update({ status: 'accepted' }).eq('id', reqData[0].id);
         }
 
         showToast('✅ تم إرسال طلب العرض السريع وتأكيده للتاجر بنجاح!');
         closeDealOrderModal();
+        await loadAllData();
         switchTab('orders');
+      } finally {
+        if (btn) btn.disabled = false;
       }
     }
 
@@ -1314,7 +1373,7 @@
             <h2 class="font-extrabold text-sm text-gray-800">2. تفاصيل الطلب والموقع والتوصيل</h2>
             <div>
               <label class="block text-xs font-bold text-gray-600 mb-1">عنوان مختصر للطلب</label>
-              <input id="req-title" type="text" placeholder="مثال: مقاضي الأسبوع / مواد بناء" class="w-full px-3.5 py-2.5 rounded-xl border border-gray-200 text-sm outline-none focus:border-emerald-500">
+              <input id="req-title" type="text" value="${draftReqTitle}" oninput="draftReqTitle=this.value" placeholder="مثال: مقاضي الأسبوع / مواد بناء" class="w-full px-3.5 py-2.5 rounded-xl border border-gray-200 text-sm outline-none focus:border-emerald-500">
             </div>
 
             <div class="grid grid-cols-2 gap-2">
@@ -1338,22 +1397,22 @@
 
             <div>
               <label class="block text-xs font-bold text-gray-600 mb-1">طريقة الاستلام والتوصيل</label>
-              <select id="req-delivery-type" class="w-full px-3.5 py-2.5 rounded-xl border border-gray-200 text-sm bg-white outline-none">
-                <option value="delivery">🚚 أحتاج توصيل للمنزل</option>
-                <option value="pickup">🏪 استلام من المحل بنفسي</option>
+              <select id="req-delivery-type" onchange="draftDeliveryType=this.value" class="w-full px-3.5 py-2.5 rounded-xl border border-gray-200 text-sm bg-white outline-none">
+                <option value="delivery" ${draftDeliveryType === 'delivery' ? 'selected' : ''}>🚚 أحتاج توصيل للمنزل</option>
+                <option value="pickup" ${draftDeliveryType === 'pickup' ? 'selected' : ''}>🏪 استلام من المحل بنفسي</option>
               </select>
             </div>
 
             <div class="bg-gray-50 p-3 rounded-xl border border-gray-200/70">
-              <label class="block text-xs font-bold text-gray-700 mb-2">أضف المواد المطلوبة:</label>
+              <label class="block text-xs font-bold text-gray-700 mb-2">أضف المواد المطلوبة (${draftItems.length}):</label>
               <div class="flex gap-1.5 overflow-x-auto hide-scroll pb-2 mb-2">
                 ${cat.suggestions.map(s => `
                   <button type="button" onclick="quickAddItem('${s}')" class="shrink-0 text-[11px] bg-white border border-emerald-200 text-emerald-700 px-2.5 py-1 rounded-full font-bold">+ ${s}</button>
                 `).join('')}
               </div>
               <div class="flex gap-2">
-                <input id="item-name" type="text" placeholder="اسم المادة..." class="flex-1 px-3 py-2 rounded-lg border border-gray-200 bg-white text-xs outline-none">
-                <input id="item-qty" type="text" placeholder="الكمية" class="w-20 px-2.5 py-2 rounded-lg border border-gray-200 bg-white text-xs outline-none">
+                <input id="item-name" type="text" onkeydown="if(event.key==='Enter'){event.preventDefault();addDraftItem();}" placeholder="اسم المادة..." class="flex-1 px-3 py-2 rounded-lg border border-gray-200 bg-white text-xs outline-none">
+                <input id="item-qty" type="text" onkeydown="if(event.key==='Enter'){event.preventDefault();addDraftItem();}" placeholder="الكمية" class="w-20 px-2.5 py-2 rounded-lg border border-gray-200 bg-white text-xs outline-none">
                 <button type="button" onclick="addDraftItem()" class="bg-emerald-600 text-white px-3.5 py-2 rounded-lg text-xs font-bold">إضافة</button>
               </div>
               <div id="draft-items-list" class="mt-2.5 space-y-1.5">
@@ -1378,7 +1437,7 @@
     function addDraftItem() {
       const name = document.getElementById('item-name').value.trim();
       const qty = document.getElementById('item-qty').value.trim() || '1';
-      if (!name) return;
+      if (!name) return showToast('اكتب اسم المادة أولاً', true);
       draftItems.push({ name, qty });
       renderCurrentTab();
     }
@@ -1391,27 +1450,45 @@
       const deliveryType = document.getElementById('req-delivery-type').value;
 
       if (!title) return showToast('يرجى كتابة عنوان للطلب', true);
+      if (!draftItems || draftItems.length === 0) {
+        return showToast('يرجى إضافة مادة واحدة على الأقل إلى القائمة', true);
+      }
 
-      const { error } = await sb.from('quote_requests').insert({
-        customer_id: currentProfile.id,
-        category: selectedCategory,
-        wilaya,
-        municipality,
-        title,
-        items: draftItems,
-        delivery_type: deliveryType,
-        latitude: currentProfile.latitude || null,
-        longitude: currentProfile.longitude || null,
-        status: 'open'
-      });
+      const btn = document.getElementById('send-req-btn');
+      if (btn) {
+        btn.disabled = true;
+        btn.textContent = 'جاري إرسال الطلب...';
+      }
 
-      if (error) {
-        showToast('حدث خطأ: ' + error.message, true);
-      } else {
-        draftItems = [];
-        showToast('✅ تم إرسال طلبك للتجار بنجاح!');
-        await loadAllData();
-        switchTab('orders');
+      try {
+        const { error } = await sb.from('quote_requests').insert({
+          customer_id: currentProfile.id,
+          category: selectedCategory,
+          wilaya,
+          municipality,
+          title,
+          items: draftItems,
+          delivery_type: deliveryType,
+          latitude: currentProfile.latitude || null,
+          longitude: currentProfile.longitude || null,
+          status: 'open'
+        });
+
+        if (error) {
+          showToast('حدث خطأ: ' + error.message, true);
+        } else {
+          draftItems = [];
+          draftReqTitle = '';
+          draftDeliveryType = 'delivery';
+          showToast('✅ تم إرسال طلبك للتجار بنجاح!');
+          await loadAllData();
+          switchTab('orders');
+        }
+      } finally {
+        if (btn) {
+          btn.disabled = false;
+          btn.textContent = '🚀 إرسال طلب التسعيرة للتجار الآن';
+        }
       }
     }
 
@@ -1420,7 +1497,6 @@
       return `<div class="space-y-4">
         ${myRequests.map(req => {
           const offers = (req.quote_offers || []).sort((a, b) => Number(a.total_price) - Number(b.total_price));
-          const acceptedOffer = offers.find(o => o.status === 'accepted') || req.status === 'accepted';
 
           return `
             <div class="bg-white rounded-2xl p-4 shadow-sm border ${req.status === 'accepted' ? 'border-emerald-500 bg-emerald-50/20' : 'border-gray-100'} space-y-3">
@@ -1435,7 +1511,7 @@
               </div>
 
               <div class="space-y-2 pt-2 border-t border-gray-100">
-                ${offers.map(of => {
+                ${offers.length === 0 ? `<p class="text-xs text-gray-400 text-center py-2">في انتظار تسعيرات التجار...</p>` : offers.map(of => {
                   let distText = '';
                   if (currentProfile.latitude && currentProfile.longitude && of.profiles?.latitude && of.profiles?.longitude) {
                     const d = calculateDistance(currentProfile.latitude, currentProfile.longitude, of.profiles.latitude, of.profiles.longitude);
@@ -1455,7 +1531,7 @@
                       </div>
                       
                       <div class="bg-white p-2.5 rounded-xl border border-gray-100 text-xs space-y-1">
-                        <div class="font-bold text-gray-700">تفاصيل عرض السعر (الرد الآلي):</div>
+                        <div class="font-bold text-gray-700">تفاصيل عرض السعر:</div>
                         ${(of.priced_items || []).map(pi => `
                           <div class="flex justify-between text-gray-600">
                             <span>${pi.name} (${pi.qty}):</span>
@@ -1535,7 +1611,7 @@
 
                 ${myOffer ? `
                   <div class="bg-emerald-50 p-2.5 rounded-xl text-xs font-bold text-emerald-800 space-y-1">
-                    <div>✅ تم الرد الآلي أو إرسال عرضك بقيمة: ${Number(myOffer.total_price).toLocaleString()} دج</div>
+                    <div>✅ تم إرسال عرضك بقيمة: ${Number(myOffer.total_price).toLocaleString()} دج</div>
                     ${myOffer.status === 'accepted' ? `<div class="text-emerald-700 font-extrabold text-sm">🎉 مبروك! الزبون اختار عرضك وأكد الطلب معك.</div>` : ''}
                   </div>` : `
                   <div class="pt-2 border-t border-gray-100 space-y-2.5">
@@ -1609,7 +1685,7 @@
 
     function renderProfileView() {
       const isMerchant = currentProfile.role === 'merchant';
-      const avatarDisplay = editAvatarBase64 || currentProfile.avatar_url;
+      const avatarDisplay = editAvatarUrl || currentProfile.avatar_url;
       const avatarHtml = avatarDisplay
         ? `<img src="${avatarDisplay}" class="w-20 h-20 rounded-full object-cover mx-auto border-2 border-emerald-500 shadow-sm mb-2">`
         : `<div class="w-20 h-20 bg-emerald-100 text-emerald-700 rounded-full mx-auto flex items-center justify-center text-3xl font-extrabold mb-2">${isMerchant ? '🏪' : '👤'}</div>`;
@@ -1673,21 +1749,22 @@
 
     async function saveProfileChanges() {
       const fullName = document.getElementById('edit-name').value.trim();
-      const phone = document.getElementById('edit-phone').value.trim();
+      const phone = normalizeDzPhone(document.getElementById('edit-phone').value.trim());
       const wilaya = document.getElementById('edit-wilaya').value;
       const municipality = document.getElementById('edit-municipality').value.trim();
       const shopName = document.getElementById('edit-shop') ? document.getElementById('edit-shop').value.trim() : null;
 
       if (!fullName) return showToast('يرجى كتابة الاسم الكامل', true);
+      if (!isValidDzPhone(phone)) return showToast('يرجى إدخال رقم هاتف جزائري صحيح', true);
 
       const updateData = { full_name: fullName, phone, wilaya, municipality };
       if (shopName !== null) updateData.shop_name = shopName;
-      if (editAvatarBase64) updateData.avatar_url = editAvatarBase64;
+      if (editAvatarUrl) updateData.avatar_url = editAvatarUrl;
 
       const { error } = await sb.from('profiles').update(updateData).eq('id', currentProfile.id);
 
       if (error) showToast('خطأ في الحفظ: ' + error.message, true);
-      else { showToast('تم تحديث الملف بنجاح!'); editAvatarBase64 = null; await loadUserProfile(); }
+      else { showToast('تم تحديث الملف بنجاح!'); editAvatarUrl = null; await loadUserProfile(); }
     }
 
     async function handleLogout() {
