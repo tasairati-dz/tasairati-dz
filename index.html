@@ -1670,6 +1670,7 @@
             <button onclick="handleLogout()" class="w-full bg-red-50 text-red-600 font-bold py-2.5 rounded-xl text-xs">تسجيل الخروج</button>
           </div>
         </div>`;
+    }
 
     async function saveProfileChanges() {
       const fullName = document.getElementById('edit-name').value.trim();
@@ -1687,13 +1688,15 @@
       const { error } = await sb.from('profiles').update(updateData).eq('id', currentProfile.id);
 
       if (error) showToast('خطأ في الحفظ: ' + error.message, true);
-      else { showToast('تم تحديث الملف بنجاح!'); editAvatarBase64 = null; await loadUserProfile();
+      else { showToast('تم تحديث الملف بنجاح!'); editAvatarBase64 = null; await loadUserProfile(); }
+    }
 
     async function handleLogout() {
       await sb.auth.signOut();
       currentUser = null;
       currentProfile = null;
       showAuthView();
+    }
 
     window.addEventListener('DOMContentLoaded', initApp);
   </script>
