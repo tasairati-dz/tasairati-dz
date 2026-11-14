@@ -49,7 +49,7 @@
     <div id="toast-box" class="px-4 py-3 rounded-xl shadow-lg text-white text-sm font-bold text-center"></div>
   </div>
 
-  <!-- نافذة الملف الشخصي -->
+  <!-- نافذة الملف الشخصي والتقييم -->
   <div id="profile-modal" class="fixed inset-0 bg-black/50 z-50 hidden flex items-center justify-center p-4">
     <div class="bg-white rounded-2xl w-full max-w-sm p-5 space-y-4 shadow-2xl relative max-h-[90vh] overflow-y-auto">
       <button onclick="closeProfileModal()" class="absolute top-3 left-3 text-gray-400 hover:text-gray-600 font-bold text-lg">✕</button>
@@ -271,6 +271,7 @@
     let merchantSearchQuery = '';
     let merchantCategoryFilter = 'all';
     let merchantDistanceFilter = 'all';
+    let offersSortMode = 'price';
     let dealTiers = [{ label: '1 وحدة', price: '' }];
     let activeDealForModal = null;
 
@@ -399,7 +400,7 @@
             currentProfile.latitude = lat;
             currentProfile.longitude = lon;
             !silent && showToast('✅ تم تثبيت موقعك المباشر في الحساب بنجاح!');
-            if (currentTab === 'profile' || currentTab === 'merchants') renderCurrentTab();
+            if (currentTab === 'profile' || currentTab === 'merchants' || currentTab === 'orders') renderCurrentTab();
           } else {
             !silent && showToast('خطأ في حفظ الموقع بالقاعدة', true);
           }
@@ -422,6 +423,7 @@
       }
 
       const isMer = userData.role === 'merchant';
+      const canReview = isMer && currentProfile && currentProfile.role === 'customer' && currentProfile.id !== userId;
       let distText = '';
       if (currentProfile && currentProfile.latitude && currentProfile.longitude && userData.latitude && userData.longitude) {
         const d = calculateDistance(currentProfile.latitude, currentProfile.longitude, userData.latitude, userData.longitude);
@@ -453,7 +455,7 @@
         ${isMer && userData.latitude && userData.longitude ? `
           <div class="mt-3">
             <a href="https://maps.google.com/?q=${userData.latitude},${userData.longitude}" target="_blank" class="block w-full bg-blue-600 text-white py-2 rounded-xl text-xs font-bold text-center shadow">
-              🗺️ فتح موقع المحل على Google Maps بضغطة واحدة
+              🗺️ فتح موقع المحل على Google Maps
             </a>
           </div>
         ` : ''}
@@ -462,8 +464,57 @@
           <a href="tel:${userData.phone || ''}" class="bg-emerald-600 text-white py-2 rounded-xl text-xs font-bold text-center">📞 اتصال</a>
           <a href="https://wa.me/${waPhone}" target="_blank" class="bg-[#25D366] text-white py-2 rounded-xl text-xs font-bold text-center">💬 واتساب</a>
         </div>
+
+        ${canReview ? `
+          <div class="mt-4 pt-3 border-t border-gray-100 text-right space-y-2">
+            <div class="text-xs font-extrabold text-gray-800">⭐ أضف تقييمك لهذا المحل:</div>
+            <div class="flex gap-2">
+              <select id="review-rating" class="px-2.5 py-2 rounded-xl border border-gray-200 text-xs font-bold text-amber-600 bg-white outline-none">
+                <option value="5">★★★★★ (5)</option>
+                <option value="4">★★★★☆ (4)</option>
+                <option value="3">★★★☆☆ (3)</option>
+                <option value="2">★★☆☆☆ (2)</option>
+                <option value="1">★☆☆☆☆ (1)</option>
+              </select>
+              <input id="review-comment" type="text" placeholder="اكتب رأيك باختصار..." class="flex-1 px-3 py-2 rounded-xl border border-gray-200 text-xs outline-none">
+            </div>
+            <button onclick="submitMerchantReview('${userId}')" class="w-full bg-amber-500 hover:bg-amber-600 text-white font-bold py-2 rounded-xl text-xs shadow">إرسال التقييم</button>
+          </div>
+        ` : ''}
+
+        ${reviews.length > 0 ? `
+          <div class="mt-3 pt-2 border-t border-gray-100 text-right space-y-1.5 max-h-32 overflow-y-auto">
+            <div class="text-[11px] font-bold text-gray-500">آراء الزبائن السابقة:</div>
+            ${reviews.slice(0, 5).map(r => `
+              <div class="bg-gray-50 p-2 rounded-lg text-[11px]">
+                <div class="flex justify-between font-bold">
+                  <span>${r.profiles?.full_name || 'زبون'}</span>
+                  <span class="text-amber-500">${'★'.repeat(r.rating)}</span>
+                </div>
+                ${r.comment ? `<p class="text-gray-600 mt-0.5">${r.comment}</p>` : ''}
+              </div>
+            `).join('')}
+          </div>
+        ` : ''}
       `;
       document.getElementById('profile-modal').classList.remove('hidden');
+    }
+
+    async function submitMerchantReview(merchantId) {
+      const rating = Number(document.getElementById('review-rating').value);
+      const comment = document.getElementById('review-comment').value.trim();
+      const { error } = await sb.from('merchant_reviews').insert({
+        merchant_id: merchantId,
+        customer_id: currentProfile.id,
+        rating,
+        comment
+      });
+      if (error) {
+        showToast('تعذر إرسال التقييم: ' + error.message, true);
+      } else {
+        showToast('⭐ شكراً لك! تم حفظ تقييمك بنجاح');
+        viewUserProfile(merchantId);
+      }
     }
 
     function closeProfileModal() {
@@ -644,7 +695,26 @@
             }
           }
         })
+        .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'quote_offers' }, payload => {
+          const offer = payload.new;
+          if (currentProfile.role === 'merchant' && offer.merchant_id === currentProfile.id && offer.status === 'accepted') {
+            triggerBackgroundNotification("🎉 تم قبول عرضك!", "قام الزبون بتأكيد طلبك الآن، راجع قسم السجل للتواصل والتوصيل.");
+            showToast("🎉 مبروك! تم قبول أحد عروضك من طرف الزبون!");
+            loadAllData();
+          }
+        })
         .subscribe();
+    }
+
+    function getMerchantAutoDeliveryFee() {
+      const saved = localStorage.getItem(`auto_delivery_fee_${currentProfile.id}`);
+      return saved !== null ? Number(saved) : 200;
+    }
+
+    function saveMerchantAutoDeliveryFee() {
+      const val = Number(document.getElementById('auto-delivery-fee-input')?.value || 0);
+      localStorage.setItem(`auto_delivery_fee_${currentProfile.id}`, String(val));
+      showToast(`✅ تم حفظ سعر التوصيل الآلي (${val} دج)`);
     }
 
     async function checkAndAutoRespondInventory(req) {
@@ -684,7 +754,7 @@
       }
 
       if (allFound && pricedItems.length > 0) {
-        const deliveryFee = req.delivery_type === 'delivery' ? 200 : 0;
+        const deliveryFee = req.delivery_type === 'delivery' ? getMerchantAutoDeliveryFee() : 0;
         const totalPrice = sum + deliveryFee;
 
         await sb.from('quote_offers').insert({
@@ -844,11 +914,20 @@
     }
 
     function renderMerchantInventoryView() {
+      const autoFee = getMerchantAutoDeliveryFee();
       return `
         <div class="space-y-4">
           <div class="bg-gradient-to-r from-emerald-600 to-teal-700 rounded-2xl p-4 text-white shadow-md">
             <h2 class="font-extrabold text-base flex items-center gap-2"><span>📦</span> اللوجيسيال السحابي (المخزون والأسعار الآلية)</h2>
             <p class="text-xs text-emerald-100 mt-1">أضف موادك وأسعارك هنا، وسيقوم النظام بالرد على طلبات الزبائن تلقائياً ودون تدخل منك!</p>
+          </div>
+
+          <div class="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 space-y-2">
+            <label class="block text-xs font-extrabold text-gray-800">🚚 سعر التوصيل الافتراضي للرد الآلي (دج):</label>
+            <div class="flex gap-2">
+              <input id="auto-delivery-fee-input" type="number" value="${autoFee}" class="flex-1 px-3.5 py-2 rounded-xl border border-gray-200 text-xs font-bold outline-none">
+              <button onclick="saveMerchantAutoDeliveryFee()" class="bg-emerald-600 text-white px-4 py-2 rounded-xl text-xs font-bold shadow">حفظ</button>
+            </div>
           </div>
 
           <div class="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 space-y-3">
@@ -870,16 +949,31 @@
             <h3 class="font-extrabold text-sm text-gray-800 px-1">المواد المسجلة في مخزونك الحالي:</h3>
             ${merchantInventory.length === 0 ? `<p class="text-xs text-gray-400 text-center py-6 bg-white rounded-2xl">لم تقم بإضافة أي مادة للمخزون بعد</p>` :
               merchantInventory.map(i => `
-                <div class="bg-white rounded-2xl p-3.5 shadow-sm border border-gray-100 flex justify-between items-center">
-                  <div>
+                <div class="bg-white rounded-2xl p-3.5 shadow-sm border border-gray-100 flex justify-between items-center gap-2">
+                  <div class="flex-1">
                     <h4 class="font-extrabold text-sm text-gray-900">${i.item_name}</h4>
-                    <div class="text-xs font-extrabold text-emerald-600 mt-0.5">السعر: ${Number(i.unit_price).toLocaleString()} دج</div>
+                    <div class="flex items-center gap-1.5 mt-1">
+                      <span class="text-xs text-gray-500">السعر:</span>
+                      <input type="number" id="edit-inv-price-${i.id}" value="${i.unit_price}" class="w-24 px-2 py-1 rounded-lg border border-gray-200 text-xs font-extrabold text-emerald-700 outline-none">
+                      <span class="text-xs font-bold text-gray-500">دج</span>
+                    </div>
                   </div>
-                  <button onclick="deleteInventoryItem('${i.id}')" class="bg-red-50 text-red-600 px-3 py-1.5 rounded-xl text-xs font-bold shadow">حذف</button>
+                  <div class="flex gap-1.5">
+                    <button onclick="updateInventoryItemPrice('${i.id}')" class="bg-emerald-50 text-emerald-700 px-2.5 py-1.5 rounded-xl text-xs font-bold">تحديث</button>
+                    <button onclick="deleteInventoryItem('${i.id}')" class="bg-red-50 text-red-600 px-2.5 py-1.5 rounded-xl text-xs font-bold">حذف</button>
+                  </div>
                 </div>
               `).join('')}
           </div>
         </div>`;
+    }
+
+    async function updateInventoryItemPrice(id) {
+      const newPrice = Number(document.getElementById(`edit-inv-price-${id}`)?.value || 0);
+      if (newPrice <= 0) return showToast('أدخل سعراً صحيحاً', true);
+      const { error } = await sb.from('merchant_inventory').update({ unit_price: newPrice }).eq('id', id);
+      if (error) showToast('خطأ في التحديث: ' + error.message, true);
+      else { showToast('✅ تم تحديث السعر في المخزون'); await loadAllData(); }
     }
 
     async function addInventoryItem() {
@@ -1000,7 +1094,6 @@
           </div>
         </div>`;
     }
-
     function renderDealTiersHTML() {
       return dealTiers.map((tier, idx) => `
         <div class="flex gap-2 items-center">
@@ -1473,6 +1566,7 @@
         await loadAllData();
       }
     }
+
     function renderCustomerNewRequest() {
       const cat = CATEGORIES[selectedCategory];
       return `
@@ -1612,22 +1706,50 @@
       }
     }
 
+    async function cancelCustomerRequest(reqId) {
+      const { error } = await sb.from('quote_requests').delete().eq('id', reqId);
+      if (error) {
+        showToast('تعذر إلغاء الطلب: ' + error.message, true);
+      } else {
+        showToast('تم إلغاء الطلب وحذفه');
+        await loadAllData();
+      }
+    }
+
     function renderCustomerOrders() {
       if (myRequests.length === 0) return `<div class="text-center py-12 bg-white rounded-2xl border border-gray-100 p-6"><p class="font-bold text-gray-700">لم ترسل أي طلب تسعيرة بعد</p></div>`;
       return `<div class="space-y-4">
+        <div class="bg-white p-2.5 rounded-2xl border border-gray-100 flex items-center justify-between">
+          <span class="text-xs font-bold text-gray-600 px-1">ترتيب العروض حسب:</span>
+          <div class="flex gap-1.5">
+            <button onclick="offersSortMode='price';renderCurrentTab()" class="px-3 py-1.5 rounded-xl text-xs font-bold ${offersSortMode === 'price' ? 'bg-emerald-600 text-white' : 'bg-gray-100 text-gray-600'}">💰 الأرخص</button>
+            <button onclick="offersSortMode='distance';renderCurrentTab()" class="px-3 py-1.5 rounded-xl text-xs font-bold ${offersSortMode === 'distance' ? 'bg-emerald-600 text-white' : 'bg-gray-100 text-gray-600'}">📍 الأقرب</button>
+          </div>
+        </div>
+
         ${myRequests.map(req => {
-          const offers = (req.quote_offers || []).sort((a, b) => Number(a.total_price) - Number(b.total_price));
+          const offers = [...(req.quote_offers || [])].sort((a, b) => {
+            if (offersSortMode === 'distance' && currentProfile.latitude && currentProfile.longitude) {
+              const dA = calculateDistanceNumeric(currentProfile.latitude, currentProfile.longitude, a.profiles?.latitude, a.profiles?.longitude);
+              const dB = calculateDistanceNumeric(currentProfile.latitude, currentProfile.longitude, b.profiles?.latitude, b.profiles?.longitude);
+              return dA - dB;
+            }
+            return Number(a.total_price) - Number(b.total_price);
+          });
 
           return `
             <div class="bg-white rounded-2xl p-4 shadow-sm border ${req.status === 'accepted' ? 'border-emerald-500 bg-emerald-50/20' : 'border-gray-100'} space-y-3">
-              <div class="flex justify-between items-start">
+              <div class="flex justify-between items-start gap-2">
                 <div>
                   <h3 class="font-extrabold text-sm text-gray-900">${req.title}</h3>
                   <p class="text-[11px] text-gray-400">📅 ${formatTimeAgo(req.created_at)} • ${req.delivery_type === 'delivery' ? '🚚 توصيل للمنزل' : '🏪 استلام من المحل'}</p>
                 </div>
-                <span class="text-xs ${req.status === 'accepted' ? 'bg-emerald-600 text-white' : 'bg-emerald-50 text-emerald-700'} px-2.5 py-1 rounded-full font-bold">
-                  ${req.status === 'accepted' ? '✅ مؤكد' : `${offers.length} عروض`}
-                </span>
+                <div class="flex items-center gap-1.5 shrink-0">
+                  <span class="text-xs ${req.status === 'accepted' ? 'bg-emerald-600 text-white' : 'bg-emerald-50 text-emerald-700'} px-2.5 py-1 rounded-full font-bold">
+                    ${req.status === 'accepted' ? '✅ مؤكد' : `${offers.length} عروض`}
+                  </span>
+                  ${req.status === 'open' ? `<button onclick="cancelCustomerRequest('${req.id}')" class="bg-red-50 text-red-600 px-2 py-1 rounded-lg text-[11px] font-bold">إلغاء</button>` : ''}
+                </div>
               </div>
 
               <div class="space-y-2 pt-2 border-t border-gray-100">
@@ -1676,7 +1798,11 @@
                       ${req.status !== 'accepted' ? `
                         <button onclick="acceptCustomerOffer('${req.id}', '${of.id}')" class="w-full bg-emerald-600 hover:bg-emerald-700 text-white py-2 rounded-lg text-xs font-extrabold shadow">
                           ✔️ تأكيد واختيار هذا العرض والمحل
-                        </button>` : (isAccepted ? `<div class="text-center text-xs font-bold text-emerald-700 bg-emerald-100 py-1.5 rounded-lg">🎉 تم تأكيد الطلب مع التاجر بنجاح</div>` : '')}
+                        </button>` : (isAccepted ? `
+                        <div class="space-y-1.5">
+                          <div class="text-center text-xs font-bold text-emerald-700 bg-emerald-100 py-1.5 rounded-lg">🎉 تم تأكيد الطلب مع التاجر بنجاح</div>
+                          <button onclick="viewUserProfile('${of.merchant_id}')" class="w-full bg-amber-500 text-white py-1.5 rounded-lg text-xs font-bold">⭐ قيّم المحل بعد الاستلام</button>
+                        </div>` : '')}
                     </div>`;
                 }).join('')}
               </div>
