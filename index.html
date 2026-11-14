@@ -633,13 +633,13 @@
         .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'quote_requests' }, async payload => {
           const req = payload.new;
           if (currentProfile.role === 'merchant' && (showAllWilayas || req.wilaya === currentProfile.wilaya)) {
-            if (req.status === 'open' && (!currentProfile.category || req.category === currentProfile.category)) {
+            if (req.status === 'open' && !(req.title || '').startsWith('[عرض سريع]') && (!currentProfile.category || req.category === currentProfile.category)) {
               await checkAndAutoRespondInventory(req);
               triggerBackgroundNotification("📦 طلب تسعيرة جديد!", `طلب جديد في ${req.wilaya} (${req.title})`);
               loadAllData();
-            } else if (req.status === 'accepted') {
+            } else if ((req.title || '').startsWith('[عرض سريع]')) {
               triggerBackgroundNotification("⚡ طلب عرض سريع جديد!", `${req.title}`);
-              setTimeout(() => loadAllData(), 800);
+              setTimeout(() => loadAllData(), 1000);
             }
           }
         })
@@ -647,7 +647,7 @@
     }
 
     async function checkAndAutoRespondInventory(req) {
-      if (req.status !== 'open') return;
+      if (req.status !== 'open' || (req.title || '').startsWith('[عرض سريع]')) return;
       if (!req.items || req.items.length === 0) return;
 
       const { data: existingOffer } = await sb
@@ -793,11 +793,11 @@
             });
           }
 
-          openRequests = allReqs.filter(r => r.status === 'open');
+          openRequests = allReqs.filter(r => r.status === 'open' && !(r.title || '').startsWith('[عرض سريع]'));
           
           historyRequests = allReqs.filter(r => {
             const hasAcceptedOffer = (r.quote_offers || []).some(o => o.merchant_id === currentProfile.id && o.status === 'accepted');
-            return (r.status === 'accepted' || hasAcceptedOffer) && r.status !== 'delivered';
+            return hasAcceptedOffer && r.status !== 'delivered';
           });
         }
       } catch (err) {
@@ -1373,7 +1373,7 @@
         }
 
         if (insertedReq && insertedReq.id) {
-          await sb.from('quote_offers').insert({
+          const { error: offerErr } = await sb.from('quote_offers').insert({
             request_id: insertedReq.id,
             merchant_id: activeDealForModal.merchant_id,
             total_price: totalPrice,
@@ -1381,6 +1381,11 @@
             priced_items: [{ name: activeDealForModal.title, qty: tierLabel, price: basePrice }],
             status: 'accepted'
           });
+          if (offerErr) {
+            await sb.from('quote_requests').delete().eq('id', insertedReq.id);
+            showToast('تعذر ربط الطلب بالتاجر: ' + offerErr.message, true);
+            return;
+          }
         }
 
         showToast('✅ تم إرسال طلب العرض السريع وتأكيده للتاجر بنجاح!');
@@ -1402,8 +1407,7 @@
           const waPhone = formatDzWhatsApp(customer.phone || '');
           const customerLat = req.latitude || customer.latitude;
           const customerLon = req.longitude || customer.longitude;
-          const acceptedOffer = (req.quote_offers || []).find(o => o.merchant_id === currentProfile.id && o.status === 'accepted')
-                             || (req.quote_offers || []).find(o => o.status === 'accepted');
+          const acceptedOffer = (req.quote_offers || []).find(o => o.merchant_id === currentProfile.id && o.status === 'accepted');
           const itemsToDisplay = (acceptedOffer && acceptedOffer.priced_items && acceptedOffer.priced_items.length > 0)
             ? acceptedOffer.priced_items
             : (req.items || []);
