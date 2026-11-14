@@ -632,16 +632,22 @@
       sb.channel('public-requests')
         .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'quote_requests' }, async payload => {
           const req = payload.new;
-          if (currentProfile.role === 'merchant' && (showAllWilayas || req.wilaya === currentProfile.wilaya) && (!currentProfile.category || req.category === currentProfile.category)) {
-            await checkAndAutoRespondInventory(req);
-            triggerBackgroundNotification("📦 طلب تسعيرة جديد!", `طلب جديد في ${req.wilaya} (${req.title})`);
-            loadAllData();
+          if (currentProfile.role === 'merchant' && (showAllWilayas || req.wilaya === currentProfile.wilaya)) {
+            if (req.status === 'open' && (!currentProfile.category || req.category === currentProfile.category)) {
+              await checkAndAutoRespondInventory(req);
+              triggerBackgroundNotification("📦 طلب تسعيرة جديد!", `طلب جديد في ${req.wilaya} (${req.title})`);
+              loadAllData();
+            } else if (req.status === 'accepted') {
+              triggerBackgroundNotification("⚡ طلب عرض سريع جديد!", `${req.title}`);
+              setTimeout(() => loadAllData(), 800);
+            }
           }
         })
         .subscribe();
     }
 
     async function checkAndAutoRespondInventory(req) {
+      if (req.status !== 'open') return;
       if (!req.items || req.items.length === 0) return;
 
       const { data: existingOffer } = await sb
@@ -781,7 +787,10 @@
           let allReqs = data || [];
           
           if (!showAllWilayas && currentProfile.category) {
-            allReqs = allReqs.filter(r => r.category === currentProfile.category || !r.category);
+            allReqs = allReqs.filter(r => {
+              const isMine = (r.quote_offers || []).some(o => o.merchant_id === currentProfile.id);
+              return isMine || r.category === currentProfile.category || !r.category;
+            });
           }
 
           openRequests = allReqs.filter(r => r.status === 'open');
@@ -1004,6 +1013,13 @@
     function renderFlashDealsView() {
       const isMerchant = currentProfile.role === 'merchant';
       const myDeals = flashDeals.filter(d => d.merchant_id === currentProfile.id);
+      const flashDealOrders = isMerchant
+        ? historyRequests.filter(r => {
+            const isFlash = (r.title || '').startsWith('[عرض سريع]');
+            const isMyAccepted = (r.quote_offers || []).some(o => o.merchant_id === currentProfile.id && o.status === 'accepted');
+            return isFlash && isMyAccepted;
+          })
+        : [];
 
       return `
         <div class="space-y-4">
@@ -1061,18 +1077,95 @@
             </div>
 
             <div class="space-y-3 mt-4">
-              <h3 class="font-extrabold text-sm text-gray-800 px-1">عروضي السريعة النشطة:</h3>
+              <div class="flex items-center justify-between px-1">
+                <h3 class="font-extrabold text-sm text-gray-800">📥 الطلبات المستلمة من العروض السريعة:</h3>
+                <span class="bg-orange-100 text-orange-800 text-xs font-extrabold px-2.5 py-0.5 rounded-full">${flashDealOrders.length}</span>
+              </div>
+              ${flashDealOrders.length === 0 ? `<p class="text-xs text-gray-400 text-center py-4 bg-white rounded-2xl border border-gray-100">لا توجد طلبات مستلمة على العروض السريعة حالياً</p>` :
+                flashDealOrders.map(req => {
+                  const customer = req.profiles || {};
+                  const waPhone = formatDzWhatsApp(customer.phone || '');
+                  const customerLat = req.latitude || customer.latitude;
+                  const customerLon = req.longitude || customer.longitude;
+                  const acceptedOffer = (req.quote_offers || []).find(o => o.merchant_id === currentProfile.id && o.status === 'accepted');
+                  const itemsToDisplay = (acceptedOffer && acceptedOffer.priced_items && acceptedOffer.priced_items.length > 0)
+                    ? acceptedOffer.priced_items
+                    : (req.items || []);
+
+                  return `
+                    <div class="bg-white rounded-2xl p-4 shadow-sm border-2 border-orange-300 space-y-3">
+                      <div class="flex justify-between items-start">
+                        <div>
+                          <h4 class="font-extrabold text-sm text-gray-900">${req.title}</h4>
+                          <p class="text-[11px] text-gray-500 mt-0.5">الزبون: ${customer.full_name || 'زبون'} • 📅 ${formatTimeAgo(req.created_at)}</p>
+                          <p class="text-[11px] text-emerald-700 font-bold mt-0.5">${req.delivery_type === 'delivery' ? '🚚 توصيل للمنزل' : '🏪 استلام من المحل'}</p>
+                        </div>
+                        <span class="bg-orange-100 text-orange-800 text-[10px] font-extrabold px-2.5 py-1 rounded-full">⚡ طلب عرض سريع</span>
+                      </div>
+
+                      <div class="bg-orange-50/60 p-3 rounded-xl border border-orange-100 text-xs space-y-1.5">
+                        <div class="font-extrabold text-gray-800 border-b border-orange-100 pb-1">🛒 تفاصيل الطلب والسعر:</div>
+                        ${itemsToDisplay.map(it => `
+                          <div class="flex justify-between items-center text-gray-700">
+                            <span>• ${it.name} <span class="text-orange-700 font-bold">(${it.qty || '1'})</span></span>
+                            <span class="font-extrabold text-gray-900">${it.price ? Number(it.price).toLocaleString() + ' دج' : '-'}</span>
+                          </div>
+                        `).join('')}
+                        ${acceptedOffer ? `
+                          <div class="flex justify-between text-gray-600 pt-1 border-t border-orange-100">
+                            <span>سعر التوصيل:</span>
+                            <span class="font-bold">${Number(acceptedOffer.delivery_fee || 0).toLocaleString()} دج</span>
+                          </div>
+                          <div class="flex justify-between text-orange-800 font-extrabold text-sm pt-1 border-t border-orange-100">
+                            <span>المبلغ الإجمالي المستحق:</span>
+                            <span>${Number(acceptedOffer.total_price || 0).toLocaleString()} دج</span>
+                          </div>
+                        ` : ''}
+                      </div>
+
+                      ${customerLat && customerLon ? `
+                        <div>
+                          <a href="https://maps.google.com/?q=${customerLat},${customerLon}" target="_blank" class="block w-full bg-blue-600 text-white py-2 rounded-xl text-xs font-bold text-center shadow">
+                            🗺️ موقع الزبون في Google Maps
+                          </a>
+                        </div>` : ''}
+
+                      <div class="grid grid-cols-2 gap-2 pt-1 border-t border-gray-100">
+                        <a href="tel:${customer.phone || ''}" class="bg-emerald-600 text-white py-2 rounded-xl text-xs font-bold text-center">📞 اتصال بالزبون</a>
+                        <a href="https://wa.me/${waPhone}" target="_blank" class="bg-[#25D366] text-white py-2 rounded-xl text-xs font-bold text-center">💬 واتساب</a>
+                      </div>
+
+                      <button onclick="markOrderAsDelivered('${req.id}')" class="w-full bg-emerald-700 hover:bg-emerald-800 text-white font-extrabold py-2.5 rounded-xl text-xs shadow">
+                        ✔️ تم التسليم (إنهاء وأرشفة الطلب)
+                      </button>
+                    </div>`;
+                }).join('')}
+            </div>
+
+            <div class="space-y-3 mt-4">
+              <h3 class="font-extrabold text-sm text-gray-800 px-1">⚡ عروضي السريعة النشطة (${myDeals.length}):</h3>
               ${myDeals.length === 0 ? `<p class="text-xs text-gray-400 text-center py-4 bg-white rounded-2xl">لم تنشر أي عرض سريع بعد</p>` :
                 myDeals.map(d => `
-                  <div class="bg-white rounded-2xl p-3.5 shadow-sm border border-orange-100 flex justify-between items-center">
-                    <div class="flex items-center gap-3">
-                      ${d.image_url ? `<img src="${d.image_url}" class="w-12 h-12 rounded-xl object-cover border">` : ''}
-                      <div>
-                        <h4 class="font-extrabold text-sm text-gray-900">${d.title}</h4>
-                        <div class="text-xs font-extrabold text-orange-600 mt-0.5">مدة العرض: ${d.duration_hours || 24} ساعة • ${formatTimeAgo(d.created_at)}</div>
+                  <div class="bg-white rounded-2xl p-3.5 shadow-sm border border-orange-100 space-y-2.5">
+                    <div class="flex justify-between items-start gap-2">
+                      <div class="flex items-center gap-3">
+                        ${d.image_url ? `<img src="${d.image_url}" class="w-12 h-12 rounded-xl object-cover border">` : ''}
+                        <div>
+                          <h4 class="font-extrabold text-sm text-gray-900">${d.title}</h4>
+                          ${d.description ? `<p class="text-[11px] text-gray-500">${d.description}</p>` : ''}
+                          <div class="text-[11px] font-bold text-orange-600 mt-0.5">مدة العرض: ${d.duration_hours || 24} ساعة • ${formatTimeAgo(d.created_at)}</div>
+                        </div>
+                      </div>
+                      <button onclick="deleteFlashDeal('${d.id}')" class="bg-red-50 text-red-600 px-3 py-1.5 rounded-xl text-xs font-bold shrink-0">حذف</button>
+                    </div>
+                    <div class="bg-gray-50 p-2.5 rounded-xl border border-gray-100 text-xs space-y-1">
+                      <div class="font-bold text-gray-700">الأسعار المحفوظة والمعروضة للزبائن:</div>
+                      ${(d.tiers || []).map(t => `<div class="flex justify-between text-gray-700"><span>• ${t.label}:</span><span class="font-extrabold text-emerald-700">${Number(t.price).toLocaleString()} دج</span></div>`).join('')}
+                      <div class="flex justify-between text-gray-500 pt-1 border-t border-gray-200 text-[11px]">
+                        <span>سعر التوصيل:</span>
+                        <span class="font-bold">${Number(d.delivery_fee || 0).toLocaleString()} دج</span>
                       </div>
                     </div>
-                    <button onclick="deleteFlashDeal('${d.id}')" class="bg-red-50 text-red-600 px-3.5 py-2 rounded-xl text-xs font-bold shadow">حذف العرض</button>
                   </div>
                 `).join('')}
             </div>
