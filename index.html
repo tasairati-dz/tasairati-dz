@@ -14,7 +14,7 @@
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="تسعيرتي DZ">
 <meta property="og:title" content="تسعيرتي DZ — قارن أسعار المحلات في ولايتك">
-<meta property="og:description" content="أنشئ قائمة مشترياتك (سوبرماركت، مواد بناء، كهرومنزلية، قطع غيار) واستقبل عروض الأسعار مباشرة من التجار القريبين منك مع خيار التوصيل.">
+<meta property="og:description" content="أنشئ قائمة مشترياتك واستقبل عروض الأسعار مباشرة من التجار القريبين منك مع خيار التوصيل لـ 58 ولاية.">
 <meta property="og:url" content="https://tasairati-dz.vercel.app/">
 <meta property="og:image" content="https://tasairati-dz.vercel.app/icon-512.png">
 <meta property="og:image:width" content="512">
@@ -158,11 +158,7 @@
           </div>
           <div>
             <label class="block text-xs font-bold text-gray-700 mb-1">تخصص المحل</label>
-            <select id="reg-category" class="w-full px-3.5 py-2.5 rounded-xl border border-gray-200 bg-white text-sm outline-none">
-              <option value="supermarket">🛒 المواد الغذائية والتنظيف (سوبرماركت)</option>
-              <option value="building">🧱 مواد البناء والترميم</option>
-              <option value="auto">🚗 قطع غيار السيارات</option>
-              <option value="appliances">🔌 الأجهزة الكهرومنزلية</option>
+            <select id="reg-category" class="category-select w-full px-3.5 py-2.5 rounded-xl border border-gray-200 bg-white text-sm outline-none">
             </select>
           </div>
         </div>
@@ -236,10 +232,118 @@
     ];
 
     const CATEGORIES = {
-      supermarket: { name: 'المواد الغذائية والتنظيف', short: 'سوبرماركت', icon: '🛒', suggestions: ['زيت المائدة 5ل', 'سكر 5كغ', 'قهوة 250غ', 'سائل غسيل الملابس', 'حفاضات أطفال'] },
-      building: { name: 'مواد البناء والترميم', short: 'مواد البناء', icon: '🧱', suggestions: ['إسمنت 50كغ', 'حديد تسليح 12مم', 'رمل بناء', 'حصى', 'طلاء مائي'] },
-      auto: { name: 'قطع غيار السيارات', short: 'قطع الغيار', icon: '🚗', suggestions: ['صفائح الفرامل', 'فلتر زيت', 'طقم التوزيع', 'بطارية 60Ah'] },
-      appliances: { name: 'الأجهزة الكهرومنزلية', short: 'كهرومنزلية', icon: '🔌', suggestions: ['مكيف هواء', 'ثلاجة', 'غسالة ملابس', 'تلفاز ذكي'] }
+      supermarket: {
+        name: 'المواد الغذائية والتنظيف (سوبرماركت)',
+        short: 'سوبرماركت',
+        icon: '🛒',
+        keywords: 'غذائية أكل زيت سكر قهوة حليب تنظيف صابون سوبيريت مواد غذائية',
+        suggestions: ['زيت المائدة 5ل', 'سكر 5كغ', 'قهوة 250غ', 'سائل غسيل الملابس', 'حفاضات أطفال']
+      },
+      produce_meat: {
+        name: 'خضر، فواكه ولحوم',
+        short: 'خضر ولحوم',
+        icon: '🥩',
+        keywords: 'خضر فواكه لحم دجاج جزارة سمك بيض بطاطا طماطم لحوم',
+        suggestions: ['صدر دجاج 1كغ', 'لحم مفروم 1كغ', 'طبق بيض 30', 'بطاطا 5كغ', 'طماطم 2كغ']
+      },
+      building: {
+        name: 'مواد البناء والترميم',
+        short: 'مواد البناء',
+        icon: '🧱',
+        keywords: 'بناء إسمنت سيما حديد رمل حصى قرميد بناءات ترصيص',
+        suggestions: ['إسمنت 50كغ', 'حديد تسليح 12مم', 'رمل بناء', 'حصى', 'آجر أحمر']
+      },
+      paint_decor: {
+        name: 'دهانات، طلاء وديكور',
+        short: 'دهانات وديكور',
+        icon: '🎨',
+        keywords: 'دهان صبيغة طلاء جبس ديكور بلاكو بلاتر ألوان',
+        suggestions: ['طلاء مائي 20كغ', 'معجون جدران', 'طلاء زيتي', 'رولو طلاء', 'ألواح جبس']
+      },
+      auto: {
+        name: 'قطع غيار السيارات',
+        short: 'قطع الغيار',
+        icon: '🚗',
+        keywords: 'سيارات قطع غيار ميكانيك زيت محرك فرامل بطارية فلترات',
+        suggestions: ['صفائح الفرامل', 'فلتر زيت', 'طقم التوزيع', 'بطارية 60Ah', 'زيت محرك 5W40']
+      },
+      moto: {
+        name: 'قطع غيار الدراجات النارية',
+        short: 'دراجات نارية',
+        icon: '🏍️',
+        keywords: 'موطو دراجة نارية سكوتر كاسك عجلات سلسلة دراجات',
+        suggestions: ['إطار دراجة نارية', 'سلسلة نقل الحركة', 'زيت محرك 4T', 'خوذة حماية', 'بطارية دراجة']
+      },
+      appliances: {
+        name: 'الأجهزة الكهرومنزلية',
+        short: 'كهرومنزلية',
+        icon: '🔌',
+        keywords: 'كهرومنزلية ثلاجة غسالة مكيف تلفاز فرن طباخة كليماتيزور',
+        suggestions: ['مكيف هواء 12000', 'ثلاجة', 'غسالة ملابس', 'تلفاز ذكي 43 بوصة', 'فرن كهربائي']
+      },
+      phones: {
+        name: 'هواتف ذكية وإكسسوارات',
+        short: 'هواتف وإكسسوارات',
+        icon: '📱',
+        keywords: 'هاتف بورتابل شاحن سماعات كابل جراب تصليح هواتف موبيل',
+        suggestions: ['شاحن سريع 33W', 'سماعات بلوتوث', 'زجاج حماية', 'كابل Type-C', 'باور بانك 10000']
+      },
+      it_office: {
+        name: 'إعلام آلي، طابعات ومكتبات',
+        short: 'إعلام آلي ومكتبة',
+        icon: '💻',
+        keywords: 'حاسوب لابتوب طابعة حبر مكتبة كراريس أدوات مدرسية بيسي',
+        suggestions: ['حبر طابعة', 'ورق طباعة A4', 'فأرة لاسلكية', 'حقيبة حاسوب', 'كراريس مدرسية']
+      },
+      pharmacy: {
+        name: 'صيدلية وشبه صيدلية',
+        short: 'صيدلية ومستلزمات',
+        icon: '⚕️',
+        keywords: 'صيدلية دواء مكملات غذائية رضيع حليب أطفال تجميل طبي فارماسي',
+        suggestions: ['حليب رضع', 'فيتامينات ومكملات', 'واقي شمس طبي', 'جهاز قياس الضغط', 'معقم طبي']
+      },
+      clothing: {
+        name: 'ملابس، أحذية وعطور',
+        short: 'ملابس وعطور',
+        icon: '👕',
+        keywords: 'ملابس ألبسة أحذية سباط عطور بارفان أطفال رجال نساء',
+        suggestions: ['حذاء رياضي', 'قميص رجالي', 'عطر 100مل', 'طقم أطفال', 'حقيبة يد']
+      },
+      homeware: {
+        name: 'أواني منزلية وتجهيز المطبخ',
+        short: 'أواني منزلية',
+        icon: '🍽️',
+        keywords: 'أواني مطبخ طنجرة كوكوط صحون كؤوس أفرشة ديكور منزلي',
+        suggestions: ['طنجرة ضغط', 'طقم صحون', 'مقلاة غير لاصقة', 'طقم كؤوس', 'خلاط كهربائي']
+      },
+      bakery_supplies: {
+        name: 'لوازم الحلويات والتغليف',
+        short: 'لوازم الحلويات',
+        icon: '🧁',
+        keywords: 'حلويات قاطو شوكولاتة فرينة تغليف علب كرتون كريم شانتيي',
+        suggestions: ['شوكولاتة خام 1كغ', 'علب تغليف حلويات', 'كريم شانتيي', 'لوز مرحي', 'ملونات غذائية']
+      },
+      agriculture: {
+        name: 'لوازم الفلاحة والبستنة',
+        short: 'فلاحة وبستنة',
+        icon: '🌱',
+        keywords: 'فلاحة بذور أسمدة سقي أنابيب مبيدات أشجار جنان',
+        suggestions: ['أنبوب سقي بالتقطير', 'سماد عضوي', 'بذور خضروات', 'مرش مبيدات', 'مقص تقليم']
+      },
+      sewing: {
+        name: 'خياطة، أقمشة وستائر',
+        short: 'خياطة وأقمشة',
+        icon: '🧵',
+        keywords: 'خياطة قماش ستائر ريدو خيوط آلة خياطة أزرار تفصيل',
+        suggestions: ['قماش ستائر', 'بكرة خيط خياطة', 'إبر ماكينة خياطة', 'سحابات ملابس', 'شريط تزيين']
+      },
+      cosmetics: {
+        name: 'مواد التجميل والعناية الشخصية',
+        short: 'تجميل وعناية',
+        icon: '🧴',
+        keywords: 'تجميل كوسميتيك شامبو كريم عناية بشرة شعر مكياج',
+        suggestions: ['شامبو للشعر', 'كريم مرطب', 'غسول وجه', 'مزيل عرق', 'زيت الأرغان']
+      }
     };
 
     let sb = null;
@@ -248,6 +352,8 @@
     let authMode = 'login';
     let currentTab = 'home';
     let selectedCategory = 'supermarket';
+    let categorySearchQuery = '';
+    let showAllCategories = false;
     let draftItems = [];
     let draftReqTitle = '';
     let draftDeliveryType = 'delivery';
@@ -260,6 +366,9 @@
     let historyRequests = [];
     let allMerchants = [];
     let merchantInventory = [];
+    let wilayaCatalogSuggestions = [];
+    let inventorySearchQuery = '';
+    let inventorySubTab = 'items'; // 'items' | 'pos_sync' | 'delivery_58'
     let showAllWilayas = false;
     let merchantSearchQuery = '';
     let merchantCategoryFilter = 'all';
@@ -276,6 +385,19 @@
         .replace(/>/g, '&gt;')
         .replace(/"/g, '&quot;')
         .replace(/'/g, '&#039;');
+    }
+
+    function normalizeArabicText(str) {
+      if (!str) return '';
+      return String(str)
+        .toLowerCase()
+        .replace(/[\u064B-\u065F\u0670]/g, '')
+        .replace(/[أإآ]/g, 'ا')
+        .replace(/ة/g, 'ه')
+        .replace(/ى/g, 'ي')
+        .replace(/[^\w\u0600-\u06FF\s]/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim();
     }
 
     function normalizeDzPhone(phone) {
@@ -346,6 +468,158 @@
         sel.innerHTML = WILAYAS.map(w => `<option value="${w}">${w}</option>`).join('');
         if (curVal) sel.value = curVal;
       });
+    }
+
+    function populateCategorySelects() {
+      const optionsHtml = Object.entries(CATEGORIES)
+        .map(([key, c]) => `<option value="${key}">${c.icon} ${escapeHTML(c.name)}</option>`)
+        .join('');
+      document.querySelectorAll('.category-select').forEach(sel => {
+        const curVal = sel.value;
+        sel.innerHTML = optionsHtml;
+        if (curVal && CATEGORIES[curVal]) sel.value = curVal;
+      });
+    }
+
+    // --- إدارة كود ربط اللوجيسيال وإعدادات التوصيل لـ 58 ولاية ---
+    function getMerchantPosApiKey() {
+      if (currentProfile && currentProfile.pos_api_key) return currentProfile.pos_api_key;
+      const storageKey = `tasairati_pos_key_${currentProfile.id}`;
+      let key = localStorage.getItem(storageKey);
+      if (!key) {
+        const randPart = () => Math.random().toString(36).substring(2, 6).toUpperCase();
+        key = `TSZ-${randPart()}-${randPart()}-${randPart()}`;
+        localStorage.setItem(storageKey, key);
+        if (sb && currentProfile) {
+          sb.from('profiles').update({ pos_api_key: key }).eq('id', currentProfile.id).then(() => {});
+        }
+      }
+      return key;
+    }
+
+    async function regenerateMerchantPosApiKey() {
+      const randPart = () => Math.random().toString(36).substring(2, 6).toUpperCase();
+      const newKey = `TSZ-${randPart()}-${randPart()}-${randPart()}`;
+      localStorage.setItem(`tasairati_pos_key_${currentProfile.id}`, newKey);
+      currentProfile.pos_api_key = newKey;
+      localStorage.setItem('tasairati_cached_profile', JSON.stringify(currentProfile));
+      if (sb) {
+        await sb.from('profiles').update({ pos_api_key: newKey }).eq('id', currentProfile.id);
+      }
+      showToast('🔑 تم توليد كود ربط جديد بنجاح');
+      renderCurrentTab();
+    }
+
+    function copyTextToClipboard(text, successMsg) {
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text).then(() => showToast(successMsg)).catch(() => showToast('تعذر النسخ التلقائي', true));
+      } else {
+        const ta = document.createElement('textarea');
+        ta.value = text;
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand('copy');
+        document.body.removeChild(ta);
+        showToast(successMsg);
+      }
+    }
+
+    function getDeliverySettingsForMerchant(merchantObj) {
+      const defaults = {
+        local_fee: 200,
+        national_home_fee: 600,
+        stopdesk_fee: 350,
+        auto_respond_enabled: true,
+        wilaya_fees: {}
+      };
+      if (!merchantObj) return defaults;
+      if (merchantObj.delivery_settings && typeof merchantObj.delivery_settings === 'object') {
+        return { ...defaults, ...merchantObj.delivery_settings, wilaya_fees: merchantObj.delivery_settings.wilaya_fees || {} };
+      }
+      const localSaved = localStorage.getItem(`tasairati_delivery_58_${merchantObj.id}`);
+      if (localSaved) {
+        try {
+          const parsed = JSON.parse(localSaved);
+          return { ...defaults, ...parsed, wilaya_fees: parsed.wilaya_fees || {} };
+        } catch (e) {}
+      }
+      const legacyFee = localStorage.getItem(`auto_delivery_fee_${merchantObj.id}`);
+      if (legacyFee !== null) defaults.local_fee = Number(legacyFee);
+      return defaults;
+    }
+
+    function calcMerchantDeliveryFeeForWilaya(merchantObj, targetWilaya, deliveryType) {
+      if (deliveryType === 'pickup') return 0;
+      const settings = getDeliverySettingsForMerchant(merchantObj);
+      const isSameWilaya = merchantObj && merchantObj.wilaya === targetWilaya;
+
+      if (deliveryType === 'stopdesk') {
+        return isSameWilaya ? Math.min(Number(settings.stopdesk_fee || 0), Number(settings.local_fee || 0)) : Number(settings.stopdesk_fee || 350);
+      }
+
+      if (settings.wilaya_fees && settings.wilaya_fees[targetWilaya] !== undefined && settings.wilaya_fees[targetWilaya] !== '') {
+        return Number(settings.wilaya_fees[targetWilaya]);
+      }
+      return isSameWilaya ? Number(settings.local_fee || 0) : Number(settings.national_home_fee || 600);
+    }
+
+    async function saveMerchantDeliverySettings() {
+      const current = getDeliverySettingsForMerchant(currentProfile);
+      const localFee = Number(document.getElementById('deliv-local-fee')?.value || 0);
+      const nationalHomeFee = Number(document.getElementById('deliv-national-fee')?.value || 0);
+      const stopdeskFee = Number(document.getElementById('deliv-stopdesk-fee')?.value || 0);
+      const autoEnabled = Boolean(document.getElementById('deliv-auto-enabled')?.checked);
+
+      const updatedSettings = {
+        ...current,
+        local_fee: localFee,
+        national_home_fee: nationalHomeFee,
+        stopdesk_fee: stopdeskFee,
+        auto_respond_enabled: autoEnabled
+      };
+
+      localStorage.setItem(`tasairati_delivery_58_${currentProfile.id}`, JSON.stringify(updatedSettings));
+      localStorage.setItem(`auto_delivery_fee_${currentProfile.id}`, String(localFee));
+      currentProfile.delivery_settings = updatedSettings;
+      localStorage.setItem('tasairati_cached_profile', JSON.stringify(currentProfile));
+
+      if (sb) {
+        await sb.from('profiles').update({ delivery_settings: updatedSettings }).eq('id', currentProfile.id);
+      }
+      showToast('✅ تم حفظ إعدادات التوصيل والرد الآلي بنجاح!');
+    }
+
+    async function addCustomWilayaDeliveryRate() {
+      const wilaya = document.getElementById('custom-deliv-wilaya')?.value;
+      const feeVal = document.getElementById('custom-deliv-price')?.value;
+      if (!wilaya || feeVal === '' || Number(feeVal) < 0) return showToast('يرجى اختيار الولاية وإدخال سعر صحيح', true);
+
+      const current = getDeliverySettingsForMerchant(currentProfile);
+      current.wilaya_fees = current.wilaya_fees || {};
+      current.wilaya_fees[wilaya] = Number(feeVal);
+
+      localStorage.setItem(`tasairati_delivery_58_${currentProfile.id}`, JSON.stringify(current));
+      currentProfile.delivery_settings = current;
+      localStorage.setItem('tasairati_cached_profile', JSON.stringify(currentProfile));
+
+      if (sb) {
+        await sb.from('profiles').update({ delivery_settings: current }).eq('id', currentProfile.id);
+      }
+      showToast(`✅ تم تحديد توصيل ${wilaya} بـ ${Number(feeVal).toLocaleString()} دج`);
+      renderCurrentTab();
+    }
+
+    async function removeCustomWilayaDeliveryRate(wilaya) {
+      const current = getDeliverySettingsForMerchant(currentProfile);
+      if (current.wilaya_fees) delete current.wilaya_fees[wilaya];
+      localStorage.setItem(`tasairati_delivery_58_${currentProfile.id}`, JSON.stringify(current));
+      currentProfile.delivery_settings = current;
+      localStorage.setItem('tasairati_cached_profile', JSON.stringify(currentProfile));
+      if (sb) {
+        await sb.from('profiles').update({ delivery_settings: current }).eq('id', currentProfile.id);
+      }
+      showToast('تم حذف التسعيرة المخصصة');
+      renderCurrentTab();
     }
 
     function processAndUploadImage(file, maxWidth, quality, folder, callback) {
@@ -554,6 +828,7 @@
     async function initApp() {
       try {
         populateWilayas();
+        populateCategorySelects();
         if (typeof window.supabase === 'undefined') throw new Error('تعذر تحميل مكتبة الاتصال');
         sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
@@ -583,6 +858,8 @@
     }
 
     function showAuthView() {
+      populateWilayas();
+      populateCategorySelects();
       document.getElementById('loading-screen').classList.add('hidden');
       document.getElementById('app-view').classList.add('hidden');
       document.getElementById('auth-view').classList.remove('hidden');
@@ -595,6 +872,10 @@
       document.getElementById('tab-login').className = `py-2 rounded-lg text-sm font-bold ${!isSignup ? 'bg-white text-emerald-700 shadow-sm' : 'text-gray-500'}`;
       document.getElementById('tab-signup').className = `py-2 rounded-lg text-sm font-bold ${isSignup ? 'bg-white text-emerald-700 shadow-sm' : 'text-gray-500'}`;
       document.getElementById('auth-submit-btn').textContent = isSignup ? 'إنشاء الحساب والدخول' : 'دخول إلى التطبيق';
+      if (isSignup) {
+        populateWilayas();
+        populateCategorySelects();
+      }
     }
 
     function toggleMerchantFields() {
@@ -733,20 +1014,149 @@
         .subscribe();
     }
 
-    function getMerchantAutoDeliveryFee() {
-      const saved = localStorage.getItem(`auto_delivery_fee_${currentProfile.id}`);
-      return saved !== null ? Number(saved) : 200;
+    // --- محرك المطابقة الذكية والرد الآلي الفوري من اللوجيسيال ---
+    function matchInventoryItem(reqItem, merchantInvList) {
+      const rawName = (reqItem.name || '').trim();
+      const normReq = normalizeArabicText(rawName);
+      if (!normReq) return null;
+
+      // 1. مطابقة تامة بالاسم أو الباركود
+      let match = merchantInvList.find(inv => {
+        if (inv.barcode && String(inv.barcode).trim() === rawName) return true;
+        return normalizeArabicText(inv.item_name) === normReq;
+      });
+      if (match) return match;
+
+      // 2. مطابقة جزئية مباشرة (أحدهما يحتوي الآخر)
+      match = merchantInvList.find(inv => {
+        const normInv = normalizeArabicText(inv.item_name);
+        return normInv && (normInv.includes(normReq) || normReq.includes(normInv));
+      });
+      if (match) return match;
+
+      // 3. مطابقة الكلمات المفتاحية (للأوصاف العربية/الفرنسية المختلطة)
+      const reqWords = normReq.split(' ').filter(w => w.length > 2);
+      if (reqWords.length > 0) {
+        let bestMatch = null;
+        let bestScore = 0;
+        for (const inv of merchantInvList) {
+          const normInv = normalizeArabicText(inv.item_name);
+          const matchedWords = reqWords.filter(w => normInv.includes(w)).length;
+          const score = matchedWords / reqWords.length;
+          if (score >= 0.5 && score > bestScore) {
+            bestScore = score;
+            bestMatch = inv;
+          }
+        }
+        if (bestMatch) return bestMatch;
+      }
+      return null;
     }
 
-    function saveMerchantAutoDeliveryFee() {
-      const val = Number(document.getElementById('auto-delivery-fee-input')?.value || 0);
-      localStorage.setItem(`auto_delivery_fee_${currentProfile.id}`, String(val));
-      showToast(`✅ تم حفظ سعر التوصيل الآلي (${val} دج)`);
+    async function runInstantAutoPricingForRequest(reqObj) {
+      if (!reqObj || !reqObj.id || !reqObj.items || reqObj.items.length === 0) return 0;
+
+      try {
+        // جلب تجار نفس الولاية ونفس المجال
+        const { data: merchants } = await sb
+          .from('profiles')
+          .select('*')
+          .eq('role', 'merchant')
+          .eq('wilaya', reqObj.wilaya);
+
+        const eligibleMerchants = (merchants || []).filter(m => {
+          const catOk = !m.category || m.category === reqObj.category;
+          const delivSettings = getDeliverySettingsForMerchant(m);
+          return catOk && delivSettings.auto_respond_enabled !== false;
+        });
+
+        if (eligibleMerchants.length === 0) return 0;
+
+        const merchantIds = eligibleMerchants.map(m => m.id);
+        const { data: allInv } = await sb
+          .from('merchant_inventory')
+          .select('*')
+          .in('merchant_id', merchantIds);
+
+        if (!allInv || allInv.length === 0) return 0;
+
+        // التحقق من العروض الموجودة مسبقاً لتجنب التكرار
+        const { data: existingOffers } = await sb
+          .from('quote_offers')
+          .select('merchant_id')
+          .eq('request_id', reqObj.id);
+        const alreadyRepliedIds = new Set((existingOffers || []).map(o => o.merchant_id));
+
+        const invByMerchant = {};
+        for (const item of allInv) {
+          if (!invByMerchant[item.merchant_id]) invByMerchant[item.merchant_id] = [];
+          invByMerchant[item.merchant_id].push(item);
+        }
+
+        const offersToInsert = [];
+        for (const merchant of eligibleMerchants) {
+          if (alreadyRepliedIds.has(merchant.id)) continue;
+          const mInv = invByMerchant[merchant.id] || [];
+          if (mInv.length === 0) continue;
+
+          let itemsSum = 0;
+          let matchedCount = 0;
+          const pricedItems = [];
+
+          for (const reqItem of reqObj.items) {
+            const matchedInv = matchInventoryItem(reqItem, mInv);
+            const qtyNum = parseFloat(String(reqItem.qty || '1').replace(/[^\d.]/g, '')) || 1;
+            if (matchedInv && Number(matchedInv.unit_price) > 0) {
+              const linePrice = Number(matchedInv.unit_price) * qtyNum;
+              itemsSum += linePrice;
+              matchedCount++;
+              pricedItems.push({
+                name: reqItem.name,
+                qty: reqItem.qty,
+                price: linePrice,
+                unit_price: Number(matchedInv.unit_price),
+                matched_name: matchedInv.item_name,
+                available: true
+              });
+            } else {
+              pricedItems.push({
+                name: reqItem.name,
+                qty: reqItem.qty,
+                price: 0,
+                available: false
+              });
+            }
+          }
+
+          if (matchedCount > 0) {
+            const deliveryFee = calcMerchantDeliveryFeeForWilaya(merchant, reqObj.wilaya, reqObj.delivery_type);
+            offersToInsert.push({
+              request_id: reqObj.id,
+              merchant_id: merchant.id,
+              total_price: itemsSum + deliveryFee,
+              delivery_fee: deliveryFee,
+              priced_items: pricedItems,
+              status: 'pending'
+            });
+          }
+        }
+
+        if (offersToInsert.length > 0) {
+          await sb.from('quote_offers').insert(offersToInsert);
+        }
+        return offersToInsert.length;
+      } catch (e) {
+        console.error('Auto-pricing error:', e);
+        return 0;
+      }
     }
 
     async function checkAndAutoRespondInventory(req) {
       if (req.status !== 'open' || (req.title || '').startsWith('[عرض سريع]')) return;
       if (!req.items || req.items.length === 0) return;
+
+      const delivSettings = getDeliverySettingsForMerchant(currentProfile);
+      if (delivSettings.auto_respond_enabled === false) return;
 
       const { data: existingOffer } = await sb
         .from('quote_offers')
@@ -760,28 +1170,24 @@
       if (!inv || inv.length === 0) return;
 
       let sum = 0;
+      let matchedCount = 0;
       let pricedItems = [];
-      let allFound = true;
 
       for (let item of req.items) {
-        const foundMatch = inv.find(i => 
-          item.name.toLowerCase().includes(i.item_name.toLowerCase()) || 
-          i.item_name.toLowerCase().includes(item.name.toLowerCase()) ||
-          item.name.toLowerCase().split(' ').some(w => w.length > 2 && i.item_name.toLowerCase().includes(w))
-        );
-        
-        if (foundMatch) {
-          let qtyNum = parseFloat(item.qty) || 1;
-          let itemTotal = foundMatch.unit_price * qtyNum;
+        const foundMatch = matchInventoryItem(item, inv);
+        let qtyNum = parseFloat(String(item.qty || '1').replace(/[^\d.]/g, '')) || 1;
+        if (foundMatch && Number(foundMatch.unit_price) > 0) {
+          let itemTotal = Number(foundMatch.unit_price) * qtyNum;
           sum += itemTotal;
-          pricedItems.push({ name: item.name, qty: item.qty, price: itemTotal });
+          matchedCount++;
+          pricedItems.push({ name: item.name, qty: item.qty, price: itemTotal, available: true });
         } else {
-          allFound = false;
+          pricedItems.push({ name: item.name, qty: item.qty, price: 0, available: false });
         }
       }
 
-      if (allFound && pricedItems.length > 0) {
-        const deliveryFee = req.delivery_type === 'delivery' ? getMerchantAutoDeliveryFee() : 0;
+      if (matchedCount > 0) {
+        const deliveryFee = calcMerchantDeliveryFeeForWilaya(currentProfile, req.wilaya, req.delivery_type);
         const totalPrice = sum + deliveryFee;
 
         await sb.from('quote_offers').insert({
@@ -804,7 +1210,7 @@
             <span class="text-xl mb-0.5">📥</span><span>الطلبات</span>
           </button>
           <button onclick="switchTab('inventory')" id="nav-inventory" class="flex flex-col items-center text-gray-400 font-bold text-xs">
-            <span class="text-xl mb-0.5">📦</span><span>المخزون</span>
+            <span class="text-xl mb-0.5">📦</span><span>اللوجيسيال</span>
           </button>
           <button onclick="switchTab('deals')" id="nav-deals" class="flex flex-col items-center text-gray-400 font-bold text-xs">
             <span class="text-xl mb-0.5">⚡</span><span>عروضي</span>
@@ -862,6 +1268,19 @@
         if (currentProfile.role === 'merchant') {
           const { data: invData } = await sb.from('merchant_inventory').select('*').eq('merchant_id', currentProfile.id);
           merchantInventory = invData || [];
+        } else {
+          // جلب أسماء السلع المتوفرة في ولاية الزبون لتسهيل الإكمال التلقائي ومطابقة اللوجيسيال
+          const localMerchantIds = allMerchants.filter(m => m.wilaya === currentProfile.wilaya).map(m => m.id);
+          if (localMerchantIds.length > 0) {
+            const { data: catItems } = await sb
+              .from('merchant_inventory')
+              .select('item_name, unit_price, merchant_id')
+              .in('merchant_id', localMerchantIds)
+              .limit(150);
+            wilayaCatalogSuggestions = catItems || [];
+          } else {
+            wilayaCatalogSuggestions = [];
+          }
         }
 
         if (currentProfile.role === 'customer') {
@@ -909,8 +1328,11 @@
       if (currentTab === 'profile') {
         main.innerHTML = renderProfileView();
         populateWilayas();
+        populateCategorySelects();
         const editWilaya = document.getElementById('edit-wilaya');
         if (editWilaya) editWilaya.value = currentProfile.wilaya;
+        const editCat = document.getElementById('edit-category');
+        if (editCat && currentProfile.category) editCat.value = currentProfile.category;
         return;
       }
       if (currentTab === 'history') {
@@ -923,6 +1345,7 @@
       }
       if (currentTab === 'inventory' && currentProfile.role === 'merchant') {
         main.innerHTML = renderMerchantInventoryView();
+        populateWilayas();
         return;
       }
       if (currentTab === 'merchants') {
@@ -940,58 +1363,211 @@
       }
     }
 
+    // --- لوحة اللوجيسيال، الاستيراد CSV، وحاسبة التوصيل لـ 58 ولاية ---
+    function switchInventorySubTab(sub) {
+      inventorySubTab = sub;
+      renderCurrentTab();
+      populateWilayas();
+    }
+
     function renderMerchantInventoryView() {
-      const autoFee = getMerchantAutoDeliveryFee();
+      const apiKey = getMerchantPosApiKey();
+      const deliv = getDeliverySettingsForMerchant(currentProfile);
+      const customWilayasList = Object.entries(deliv.wilaya_fees || {});
+      const filteredInv = merchantInventory.filter(i => {
+        if (!inventorySearchQuery.trim()) return true;
+        const q = normalizeArabicText(inventorySearchQuery);
+        return normalizeArabicText(i.item_name).includes(q) || String(i.barcode || '').includes(inventorySearchQuery.trim());
+      });
+
       return `
         <div class="space-y-4">
           <div class="bg-gradient-to-r from-emerald-600 to-teal-700 rounded-2xl p-4 text-white shadow-md">
-            <h2 class="font-extrabold text-base flex items-center gap-2"><span>📦</span> اللوجيسيال السحابي (المخزون والأسعار الآلية)</h2>
-            <p class="text-xs text-emerald-100 mt-1">أضف موادك وأسعارك هنا، وسيقوم النظام بالرد على طلبات الزبائن تلقائياً ودون تدخل منك!</p>
+            <h2 class="font-extrabold text-base flex items-center gap-2"><span>📦</span> لوجيسيال المحل والرد الآلي</h2>
+            <p class="text-xs text-emerald-100 mt-1">اربط مخزونك أو استورد قائمة الأسعار ليقوم التطبيق بالرد الآلي على طلبات الزبائن فور نشرها!</p>
           </div>
 
-          <div class="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 space-y-2">
-            <label class="block text-xs font-extrabold text-gray-800">🚚 سعر التوصيل الافتراضي للرد الآلي (دج):</label>
-            <div class="flex gap-2">
-              <input id="auto-delivery-fee-input" type="number" value="${autoFee}" class="flex-1 px-3.5 py-2 rounded-xl border border-gray-200 text-xs font-bold outline-none">
-              <button onclick="saveMerchantAutoDeliveryFee()" class="bg-emerald-600 text-white px-4 py-2 rounded-xl text-xs font-bold shadow">حفظ</button>
-            </div>
-          </div>
-
-          <div class="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 space-y-3">
-            <h3 class="font-extrabold text-sm text-gray-800">➕ إضافة مادة جديدة للمخزون</h3>
-            <div>
-              <label class="block text-xs font-bold text-gray-700 mb-1">اسم المادة</label>
-              <input id="inv-item-name" type="text" placeholder="مثال: زيت المائدة 5ل" class="w-full px-3.5 py-2.5 rounded-xl border border-gray-200 text-xs outline-none">
-            </div>
-            <div>
-              <label class="block text-xs font-bold text-gray-700 mb-1">سعر الوحدة (دج)</label>
-              <input id="inv-item-price" type="number" placeholder="مثال: 750" class="w-full px-3.5 py-2.5 rounded-xl border border-gray-200 text-xs outline-none font-bold text-emerald-700">
-            </div>
-            <button onclick="addInventoryItem()" class="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3 rounded-xl text-xs shadow">
-              حفظ في المخزون واللوجيسيال 💾
+          <!-- شريط التنقل الداخلي للوجيسيال -->
+          <div class="grid grid-cols-3 bg-white p-1.5 rounded-2xl border border-gray-100 shadow-sm gap-1">
+            <button onclick="switchInventorySubTab('items')" class="py-2 rounded-xl text-xs font-extrabold transition ${inventorySubTab === 'items' ? 'bg-emerald-600 text-white shadow-sm' : 'text-gray-600'}">
+              📋 السلع (${merchantInventory.length})
+            </button>
+            <button onclick="switchInventorySubTab('pos_sync')" class="py-2 rounded-xl text-xs font-extrabold transition ${inventorySubTab === 'pos_sync' ? 'bg-emerald-600 text-white shadow-sm' : 'text-gray-600'}">
+              🔗 ربط POS / CSV
+            </button>
+            <button onclick="switchInventorySubTab('delivery_58')" class="py-2 rounded-xl text-xs font-extrabold transition ${inventorySubTab === 'delivery_58' ? 'bg-emerald-600 text-white shadow-sm' : 'text-gray-600'}">
+              🚚 توصيل 58 ولاية
             </button>
           </div>
 
-          <div class="space-y-3">
-            <h3 class="font-extrabold text-sm text-gray-800 px-1">المواد المسجلة في مخزونك الحالي:</h3>
-            ${merchantInventory.length === 0 ? `<p class="text-xs text-gray-400 text-center py-6 bg-white rounded-2xl">لم تقم بإضافة أي مادة للمخزون بعد</p>` :
-              merchantInventory.map(i => `
-                <div class="bg-white rounded-2xl p-3.5 shadow-sm border border-gray-100 flex justify-between items-center gap-2">
-                  <div class="flex-1">
-                    <h4 class="font-extrabold text-sm text-gray-900">${escapeHTML(i.item_name)}</h4>
-                    <div class="flex items-center gap-1.5 mt-1">
-                      <span class="text-xs text-gray-500">السعر:</span>
-                      <input type="number" id="edit-inv-price-${i.id}" value="${i.unit_price}" class="w-24 px-2 py-1 rounded-lg border border-gray-200 text-xs font-extrabold text-emerald-700 outline-none">
-                      <span class="text-xs font-bold text-gray-500">دج</span>
-                    </div>
+          ${inventorySubTab === 'pos_sync' ? `
+            <!-- قسم كود الربط البرمجي API واستيراد CSV/Excel -->
+            <div class="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 space-y-3">
+              <div class="flex items-center justify-between">
+                <h3 class="font-extrabold text-sm text-gray-900">🔑 كود ربط لوجيسيال المحلات (POS API Key)</h3>
+                <span class="bg-emerald-50 text-emerald-700 text-[10px] font-extrabold px-2 py-0.5 rounded-full">مفعّل</span>
+              </div>
+              <p class="text-[11px] text-gray-500">استخدم هذا الكود لربط برنامج الكاشير (POS) الخاص بمحلك ومزامنة الأسعار والمخزون تلقائياً:</p>
+              
+              <div class="bg-gray-900 text-emerald-400 p-3 rounded-xl font-mono text-xs flex items-center justify-between gap-2" dir="ltr">
+                <span class="truncate select-all">${escapeHTML(apiKey)}</span>
+                <button onclick="copyTextToClipboard('${escapeHTML(apiKey)}', '✅ تم نسخ كود الربط!')" class="bg-emerald-600 text-white px-2.5 py-1 rounded-lg font-sans font-bold text-[11px] shrink-0">نسخ</button>
+              </div>
+              <div class="flex justify-between items-center text-[11px]">
+                <span class="text-gray-400">معرّف المتجر: <code class="text-gray-600">${escapeHTML(currentProfile.id.slice(0, 8))}...</code></span>
+                <button onclick="regenerateMerchantPosApiKey()" class="text-amber-600 font-bold hover:underline">🔄 توليد كود جديد</button>
+              </div>
+            </div>
+
+            <div class="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 space-y-3">
+              <h3 class="font-extrabold text-sm text-gray-900">📥 استيراد سريع من Excel / CSV (من اللوجيسيال)</h3>
+              <p class="text-[11px] text-gray-500">صدّر قائمة السلع من برنامج المحل بصيغة CSV أو Excel وارفعها هنا لتحديث كل الأسعار دفعة واحدة:</p>
+              
+              <div class="grid grid-cols-2 gap-2">
+                <button type="button" onclick="downloadSampleInventoryCSV()" class="bg-blue-50 text-blue-700 border border-blue-200 py-2 rounded-xl text-xs font-bold">
+                  📄 تحميل نموذج CSV
+                </button>
+                <button type="button" onclick="exportCurrentInventoryCSV()" class="bg-gray-100 text-gray-700 py-2 rounded-xl text-xs font-bold">
+                  📤 تصدير مخزوني CSV
+                </button>
+              </div>
+
+              <div class="border-2 border-dashed border-emerald-300 bg-emerald-50/40 rounded-2xl p-4 text-center space-y-2">
+                <div class="text-2xl">📊</div>
+                <div class="text-xs font-extrabold text-emerald-900">اختر ملف CSV المستخرج من اللوجيسيال</div>
+                <div class="text-[10px] text-gray-500">الأعمدة المدعومة: الاسم، سعر البيع، سعر التكلفة، الباركود، الكمية</div>
+                <input type="file" accept=".csv,.txt" onchange="handlePosCsvImport(event)" class="block w-full text-xs text-gray-500 file:mx-auto file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-bold file:bg-emerald-600 file:text-white cursor-pointer">
+              </div>
+              <div id="csv-import-status" class="hidden text-xs font-bold p-3 rounded-xl"></div>
+            </div>
+          ` : ''}
+
+          ${inventorySubTab === 'delivery_58' ? `
+            <!-- قسم حاسبة التوصيل لـ 58 ولاية والرد الآلي -->
+            <div class="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 space-y-3">
+              <div class="flex items-center justify-between bg-emerald-50 p-3 rounded-xl border border-emerald-100">
+                <div>
+                  <div class="text-xs font-extrabold text-emerald-900">🤖 تفعيل الرد الآلي الفوري على الزبائن</div>
+                  <div class="text-[11px] text-emerald-700">يرسل تسعيرتك وتكلفة التوصيل تلقائياً فور نشر الطلب</div>
+                </div>
+                <input type="checkbox" id="deliv-auto-enabled" ${deliv.auto_respond_enabled !== false ? 'checked' : ''} class="w-5 h-5 accent-emerald-600 rounded">
+              </div>
+
+              <h3 class="font-extrabold text-sm text-gray-800 pt-1">🚚 تسعيرة التوصيل الأساسية (دج)</h3>
+              <div class="space-y-2.5">
+                <div>
+                  <label class="block text-xs font-bold text-gray-700 mb-1">التوصيل داخل ولايتك (${escapeHTML(currentProfile.wilaya)})</label>
+                  <input id="deliv-local-fee" type="number" value="${Number(deliv.local_fee || 0)}" class="w-full px-3.5 py-2 rounded-xl border border-gray-200 text-xs font-bold outline-none">
+                </div>
+                <div class="grid grid-cols-2 gap-2">
+                  <div>
+                    <label class="block text-[11px] font-bold text-gray-700 mb-1">للمنزل (باقي 58 ولاية)</label>
+                    <input id="deliv-national-fee" type="number" value="${Number(deliv.national_home_fee || 0)}" class="w-full px-3 py-2 rounded-xl border border-gray-200 text-xs font-bold outline-none">
                   </div>
-                  <div class="flex gap-1.5">
-                    <button onclick="updateInventoryItemPrice('${i.id}')" class="bg-emerald-50 text-emerald-700 px-2.5 py-1.5 rounded-xl text-xs font-bold">تحديث</button>
-                    <button onclick="deleteInventoryItem('${i.id}')" class="bg-red-50 text-red-600 px-2.5 py-1.5 rounded-xl text-xs font-bold">حذف</button>
+                  <div>
+                    <label class="block text-[11px] font-bold text-gray-700 mb-1">للمكتب (Stop Desk)</label>
+                    <input id="deliv-stopdesk-fee" type="number" value="${Number(deliv.stopdesk_fee || 0)}" class="w-full px-3 py-2 rounded-xl border border-gray-200 text-xs font-bold outline-none">
                   </div>
                 </div>
-              `).join('')}
-          </div>
+              </div>
+
+              <button onclick="saveMerchantDeliverySettings()" class="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3 rounded-xl text-xs shadow">
+                حفظ إعدادات التوصيل والرد الآلي 💾
+              </button>
+            </div>
+
+            <div class="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 space-y-3">
+              <h3 class="font-extrabold text-sm text-gray-800">🗺️ تخصيص سعر توصيل لولاية محددة (من 58 ولاية)</h3>
+              <div class="grid grid-cols-3 gap-2">
+                <select id="custom-deliv-wilaya" class="wilaya-select col-span-2 px-2.5 py-2 rounded-xl border border-gray-200 text-xs bg-white outline-none"></select>
+                <input id="custom-deliv-price" type="number" placeholder="السعر دج" class="px-2.5 py-2 rounded-xl border border-gray-200 text-xs font-bold outline-none">
+              </div>
+              <button onclick="addCustomWilayaDeliveryRate()" class="w-full bg-gray-800 text-white font-bold py-2.5 rounded-xl text-xs">
+                + إضافة / تحديث سعر الولاية
+              </button>
+
+              ${customWilayasList.length > 0 ? `
+                <div class="space-y-1.5 pt-2 border-t border-gray-100">
+                  <div class="text-[11px] font-bold text-gray-500">الولايات المخصصة:</div>
+                  ${customWilayasList.map(([wName, wFee]) => `
+                    <div class="flex justify-between items-center bg-gray-50 px-3 py-2 rounded-xl text-xs">
+                      <span class="font-bold text-gray-800">${escapeHTML(wName)}</span>
+                      <div class="flex items-center gap-2">
+                        <span class="font-extrabold text-emerald-700">${Number(wFee).toLocaleString()} دج</span>
+                        <button onclick="removeCustomWilayaDeliveryRate('${escapeHTML(wName)}')" class="text-red-500 font-bold">✕</button>
+                      </div>
+                    </div>
+                  `).join('')}
+                </div>
+              ` : ''}
+            </div>
+          ` : ''}
+
+          ${inventorySubTab === 'items' ? `
+            <!-- قسم إضافة وتعديل السلع -->
+            <div class="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 space-y-3">
+              <h3 class="font-extrabold text-sm text-gray-800">➕ إضافة مادة جديدة للمخزون والرد الآلي</h3>
+              <div>
+                <label class="block text-xs font-bold text-gray-700 mb-1">اسم المادة (كما يبحث عنها الزبون)</label>
+                <input id="inv-item-name" type="text" placeholder="مثال: زيت المائدة 5ل" class="w-full px-3.5 py-2.5 rounded-xl border border-gray-200 text-xs outline-none">
+              </div>
+              <div class="grid grid-cols-2 gap-2">
+                <div>
+                  <label class="block text-xs font-bold text-gray-700 mb-1">سعر البيع للزبون (دج)</label>
+                  <input id="inv-item-price" type="number" placeholder="مثال: 750" class="w-full px-3 py-2 rounded-xl border border-gray-200 text-xs outline-none font-bold text-emerald-700">
+                </div>
+                <div>
+                  <label class="block text-xs font-bold text-gray-700 mb-1">سعر التكلفة / الشراء (سري)</label>
+                  <input id="inv-item-cost" type="number" placeholder="مثال: 680" class="w-full px-3 py-2 rounded-xl border border-gray-200 text-xs outline-none font-bold text-gray-600">
+                </div>
+              </div>
+              <div class="grid grid-cols-2 gap-2">
+                <div>
+                  <label class="block text-xs font-bold text-gray-700 mb-1">الباركود (اختياري)</label>
+                  <input id="inv-item-barcode" type="text" placeholder="613000..." class="w-full px-3 py-2 rounded-xl border border-gray-200 text-xs outline-none">
+                </div>
+                <div>
+                  <label class="block text-xs font-bold text-gray-700 mb-1">الكمية المتوفرة</label>
+                  <input id="inv-item-qty" type="number" placeholder="مثال: 20" class="w-full px-3 py-2 rounded-xl border border-gray-200 text-xs outline-none">
+                </div>
+              </div>
+              <button onclick="addInventoryItem()" class="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3 rounded-xl text-xs shadow">
+                حفظ في المخزون واللوجيسيال 💾
+              </button>
+            </div>
+
+            <div class="space-y-3">
+              <div class="flex items-center justify-between gap-2">
+                <h3 class="font-extrabold text-sm text-gray-800 px-1">المواد المسجلة (${filteredInv.length}):</h3>
+                <input type="text" value="${escapeHTML(inventorySearchQuery)}" oninput="inventorySearchQuery=this.value; renderCurrentTab();" placeholder="🔍 بحث في مخزونك..." class="w-44 px-3 py-1.5 rounded-xl border border-gray-200 bg-white text-xs outline-none">
+              </div>
+
+              ${filteredInv.length === 0 ? `<p class="text-xs text-gray-400 text-center py-6 bg-white rounded-2xl">لا توجد مواد مطابقة في مخزونك حالياً</p>` :
+                filteredInv.map(i => `
+                  <div class="bg-white rounded-2xl p-3.5 shadow-sm border border-gray-100 space-y-2">
+                    <div class="flex justify-between items-start gap-2">
+                      <div class="flex-1">
+                        <h4 class="font-extrabold text-sm text-gray-900">${escapeHTML(i.item_name)}</h4>
+                        <div class="flex flex-wrap gap-2 text-[11px] text-gray-400 mt-0.5">
+                          ${i.barcode ? `<span>📊 باركود: ${escapeHTML(i.barcode)}</span>` : ''}
+                          ${i.stock_qty !== undefined && i.stock_qty !== null ? `<span>📦 الكمية: ${Number(i.stock_qty)}</span>` : ''}
+                          ${Number(i.cost_price) > 0 ? `<span class="text-amber-600 font-bold">🔒 التكلفة: ${Number(i.cost_price).toLocaleString()} دج</span>` : ''}
+                        </div>
+                      </div>
+                      <button onclick="deleteInventoryItem('${i.id}')" class="bg-red-50 text-red-600 px-2.5 py-1 rounded-xl text-xs font-bold">حذف</button>
+                    </div>
+                    <div class="flex items-center justify-between gap-2 pt-1.5 border-t border-gray-100">
+                      <div class="flex items-center gap-1.5">
+                        <span class="text-xs text-gray-500">سعر البيع:</span>
+                        <input type="number" id="edit-inv-price-${i.id}" value="${i.unit_price}" class="w-24 px-2 py-1 rounded-lg border border-gray-200 text-xs font-extrabold text-emerald-700 outline-none">
+                        <span class="text-xs font-bold text-gray-500">دج</span>
+                      </div>
+                      <button onclick="updateInventoryItemPrice('${i.id}')" class="bg-emerald-600 text-white px-3 py-1.5 rounded-xl text-xs font-bold">تحديث</button>
+                    </div>
+                  </div>
+                `).join('')}
+            </div>
+          ` : ''}
         </div>`;
     }
 
@@ -1006,14 +1582,31 @@
     async function addInventoryItem() {
       const itemName = document.getElementById('inv-item-name').value.trim();
       const unitPrice = Number(document.getElementById('inv-item-price').value);
+      const costPrice = Number(document.getElementById('inv-item-cost')?.value || 0);
+      const barcode = (document.getElementById('inv-item-barcode')?.value || '').trim();
+      const stockQty = Number(document.getElementById('inv-item-qty')?.value || 0);
 
-      if (!itemName || unitPrice <= 0) return showToast('يرجى كتابة اسم المادة والسعر بشكل صحيح', true);
+      if (!itemName || unitPrice <= 0) return showToast('يرجى كتابة اسم المادة وسعر البيع بشكل صحيح', true);
 
-      const { error } = await sb.from('merchant_inventory').insert({
+      const fullPayload = {
         merchant_id: currentProfile.id,
         item_name: itemName,
-        unit_price: unitPrice
-      });
+        unit_price: unitPrice,
+        cost_price: costPrice,
+        barcode: barcode || null,
+        stock_qty: stockQty
+      };
+
+      let { error } = await sb.from('merchant_inventory').insert(fullPayload);
+      if (error && (error.code === 'PGRST204' || String(error.message).includes('column'))) {
+        // توافق تلقائي في حال لم يُنفذ كود SQL للأعمدة الإضافية بعد
+        const fallback = await sb.from('merchant_inventory').insert({
+          merchant_id: currentProfile.id,
+          item_name: itemName,
+          unit_price: unitPrice
+        });
+        error = fallback.error;
+      }
 
       if (error) {
         showToast('خطأ في الحفظ: ' + error.message, true);
@@ -1021,6 +1614,9 @@
         showToast('✅ تمت إضافة المادة إلى المخزون بنجاح!');
         document.getElementById('inv-item-name').value = '';
         document.getElementById('inv-item-price').value = '';
+        if (document.getElementById('inv-item-cost')) document.getElementById('inv-item-cost').value = '';
+        if (document.getElementById('inv-item-barcode')) document.getElementById('inv-item-barcode').value = '';
+        if (document.getElementById('inv-item-qty')) document.getElementById('inv-item-qty').value = '';
         await loadAllData();
       }
     }
@@ -1033,6 +1629,117 @@
         showToast('تم حذف المادة من المخزون');
         await loadAllData();
       }
+    }
+
+    // --- دوال استيراد وتصدير CSV للوجيسيال ---
+    function downloadSampleInventoryCSV() {
+      const csvContent = "\uFEFFitem_name,unit_price,cost_price,barcode,stock_qty\nزيت المائدة 5ل,750,690,613000112233,40\nسكر أبيض 5كغ,550,510,613000445566,25\nقهوة مطحونة 250غ,380,330,613000778899,50\n";
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'tasairati_pos_template.csv';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    }
+
+    function exportCurrentInventoryCSV() {
+      if (!merchantInventory || merchantInventory.length === 0) return showToast('مخزونك فارغ حالياً', true);
+      const lines = ['item_name,unit_price,cost_price,barcode,stock_qty'];
+      for (const it of merchantInventory) {
+        const safeName = `"${String(it.item_name || '').replace(/"/g, '""')}"`;
+        lines.push(`${safeName},${Number(it.unit_price || 0)},${Number(it.cost_price || 0)},${it.barcode || ''},${Number(it.stock_qty || 0)}`);
+      }
+      const csvContent = "\uFEFF" + lines.join('\n');
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `inventory_${currentProfile.shop_name || 'shop'}.csv`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    }
+
+    function handlePosCsvImport(event) {
+      const file = event.target.files[0];
+      if (!file) return;
+      const statusBox = document.getElementById('csv-import-status');
+      if (statusBox) {
+        statusBox.className = 'text-xs font-bold p-3 rounded-xl bg-amber-50 text-amber-800';
+        statusBox.textContent = '⏳ جاري قراءة الملف ومزامنة الأسعار...';
+        statusBox.classList.remove('hidden');
+      }
+
+      const reader = new FileReader();
+      reader.onload = async function(ev) {
+        try {
+          const text = String(ev.target.result || '').replace(/^\uFEFF/, '');
+          const lines = text.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+          if (lines.length < 2) throw new Error('الملف فارغ أو لا يحتوي على صفوف بيانات');
+
+          const delimiter = lines[0].includes(';') ? ';' : ',';
+          const headers = lines[0].split(delimiter).map(h => h.trim().toLowerCase().replace(/"/g, ''));
+
+          const nameIdx = headers.findIndex(h => ['item_name', 'name', 'designation', 'désignation', 'produit', 'الاسم', 'اسم المادة', 'المادة', 'المنتج'].includes(h));
+          const priceIdx = headers.findIndex(h => ['unit_price', 'price', 'prix', 'prix_vente', 'pv', 'السعر', 'سعر البيع'].includes(h));
+          const costIdx = headers.findIndex(h => ['cost_price', 'cost', 'prix_achat', 'pa', 'التكلفة', 'سعر الشراء', 'سعر التكلفة'].includes(h));
+          const barcodeIdx = headers.findIndex(h => ['barcode', 'code', 'code_barre', 'ean', 'الباركود'].includes(h));
+          const qtyIdx = headers.findIndex(h => ['stock_qty', 'qty', 'quantite', 'quantité', 'stock', 'الكمية'].includes(h));
+
+          const colName = nameIdx >= 0 ? nameIdx : 0;
+          const colPrice = priceIdx >= 0 ? priceIdx : 1;
+
+          const parsedRows = [];
+          for (let i = 1; i < lines.length; i++) {
+            const cols = lines[i].split(delimiter).map(c => c.trim().replace(/^"|"$/g, ''));
+            const itemName = cols[colName];
+            const unitPrice = parseFloat(String(cols[colPrice] || '0').replace(/[^\d.]/g, ''));
+            if (!itemName || isNaN(unitPrice) || unitPrice <= 0) continue;
+
+            parsedRows.push({
+              merchant_id: currentProfile.id,
+              item_name: itemName,
+              unit_price: unitPrice,
+              cost_price: costIdx >= 0 ? (parseFloat(cols[costIdx]) || 0) : 0,
+              barcode: barcodeIdx >= 0 && cols[barcodeIdx] ? cols[barcodeIdx] : null,
+              stock_qty: qtyIdx >= 0 ? (parseInt(cols[qtyIdx], 10) || 0) : 0
+            });
+          }
+
+          if (parsedRows.length === 0) throw new Error('لم يتم العثور على سلع صالحة داخل الملف');
+
+          let { error } = await sb.from('merchant_inventory').insert(parsedRows);
+          if (error && (error.code === 'PGRST204' || String(error.message).includes('column'))) {
+            const basicRows = parsedRows.map(r => ({
+              merchant_id: r.merchant_id,
+              item_name: r.item_name,
+              unit_price: r.unit_price
+            }));
+            const fallback = await sb.from('merchant_inventory').insert(basicRows);
+            error = fallback.error;
+          }
+
+          if (error) throw new Error(error.message);
+
+          if (statusBox) {
+            statusBox.className = 'text-xs font-bold p-3 rounded-xl bg-emerald-50 text-emerald-800 border border-emerald-200';
+            statusBox.textContent = `✅ تمت مزامنة ${parsedRows.length} مادة بنجاح من ملف اللوجيسيال!`;
+          }
+          showToast(`✅ تم استيراد ${parsedRows.length} سلعة بنجاح!`);
+          await loadAllData();
+        } catch (err) {
+          if (statusBox) {
+            statusBox.className = 'text-xs font-bold p-3 rounded-xl bg-red-50 text-red-700';
+            statusBox.textContent = '❌ خطأ في الاستيراد: ' + err.message;
+          }
+          showToast('تعذر استيراد الملف: ' + err.message, true);
+        }
+      };
+      reader.readAsText(file, 'UTF-8');
     }
 
     function renderMerchantsSearchView() {
@@ -1063,11 +1770,8 @@
               <div>
                 <label class="block text-[11px] font-bold text-gray-600 mb-1">فئة المحل</label>
                 <select onchange="merchantCategoryFilter = this.value; renderCurrentTab()" class="w-full px-3 py-2 rounded-xl border border-gray-200 text-xs bg-white outline-none">
-                  <option value="all" ${merchantCategoryFilter === 'all' ? 'selected' : ''}>كل الفئات</option>
-                  <option value="supermarket" ${merchantCategoryFilter === 'supermarket' ? 'selected' : ''}>سوبرماركت</option>
-                  <option value="building" ${merchantCategoryFilter === 'building' ? 'selected' : ''}>مواد بناء</option>
-                  <option value="auto" ${merchantCategoryFilter === 'auto' ? 'selected' : ''}>قطع غيار</option>
-                  <option value="appliances" ${merchantCategoryFilter === 'appliances' ? 'selected' : ''}>كهرومنزلية</option>
+                  <option value="all" ${merchantCategoryFilter === 'all' ? 'selected' : ''}>كل المجالات (16)</option>
+                  ${Object.entries(CATEGORIES).map(([key, c]) => `<option value="${key}" ${merchantCategoryFilter === key ? 'selected' : ''}>${c.icon} ${escapeHTML(c.short)}</option>`).join('')}
                 </select>
               </div>
               <div>
@@ -1121,6 +1825,7 @@
           </div>
         </div>`;
     }
+
     function renderDealTiersHTML() {
       return dealTiers.map((tier, idx) => `
         <div class="flex gap-2 items-center">
@@ -1539,7 +2244,7 @@
                 <div>
                   <h3 class="font-extrabold text-sm text-gray-900">${escapeHTML(req.title)}</h3>
                   <p class="text-[11px] text-gray-500 mt-0.5">الزبون: ${escapeHTML(customer.full_name || 'زبون')} • 📅 ${formatTimeAgo(req.created_at)}</p>
-                  <p class="text-[11px] text-emerald-700 font-bold mt-0.5">${req.delivery_type === 'delivery' ? '🚚 توصيل للمنزل' : '🏪 استلام من المحل'}</p>
+                  <p class="text-[11px] text-emerald-700 font-bold mt-0.5">${req.delivery_type === 'delivery' ? '🚚 توصيل للمنزل' : (req.delivery_type === 'stopdesk' ? '🏢 مكتب التوصيل Stop Desk' : '🏪 استلام من المحل')}</p>
                 </div>
                 <span class="bg-emerald-100 text-emerald-800 text-[10px] font-extrabold px-2.5 py-1 rounded-full">✅ مؤكد</span>
               </div>
@@ -1550,7 +2255,7 @@
                   itemsToDisplay.map(it => `
                     <div class="flex justify-between items-center text-gray-700">
                       <span>• ${escapeHTML(it.name)} <span class="text-emerald-700 font-bold">(${escapeHTML(it.qty || '1')})</span></span>
-                      <span class="font-extrabold text-gray-900">${it.price ? Number(it.price).toLocaleString() + ' دج' : '-'}</span>
+                      <span class="font-extrabold text-gray-900">${it.price ? Number(it.price).toLocaleString() + ' دج' : (it.available === false ? 'غير متوفر' : '-')}</span>
                     </div>
                   `).join('')}
                 ${acceptedOffer ? `
@@ -1594,19 +2299,115 @@
       }
     }
 
+    // --- واجهة الزبون: المجالات الشاملة + البحث الذكي + الإكمال التلقائي ---
+    function getFilteredCategoryEntries() {
+      const entries = Object.entries(CATEGORIES);
+      const q = normalizeArabicText(categorySearchQuery);
+      if (!q) {
+        return showAllCategories ? entries : entries.slice(0, 6);
+      }
+      return entries.filter(([key, c]) => {
+        const hay = normalizeArabicText(`${c.name} ${c.short} ${c.keywords || ''}`);
+        return hay.includes(q);
+      });
+    }
+
+    function renderCategoriesGridInner() {
+      const filtered = getFilteredCategoryEntries();
+      const totalCount = Object.keys(CATEGORIES).length;
+      const isSearching = Boolean(normalizeArabicText(categorySearchQuery));
+
+      if (filtered.length === 0) {
+        return `<div class="text-center py-4 text-xs text-gray-400">لا يوجد مجال مطابق لبحثك، جرب كلمة أخرى</div>`;
+      }
+
+      return `
+        <div class="grid grid-cols-3 gap-2">
+          ${filtered.map(([key, c]) => `
+            <button type="button" onclick="selectCat('${key}')" class="p-2.5 rounded-xl border-2 text-center transition flex flex-col items-center justify-center ${selectedCategory === key ? 'border-emerald-600 bg-emerald-50/80 shadow-sm' : 'border-gray-100 bg-gray-50 hover:bg-gray-100/70'}">
+              <div class="text-xl mb-1">${c.icon}</div>
+              <div class="text-[11px] font-extrabold text-gray-800 leading-tight">${escapeHTML(c.short)}</div>
+            </button>
+          `).join('')}
+        </div>
+        ${!isSearching ? `
+          <button type="button" onclick="toggleShowAllCategories()" class="w-full mt-2.5 py-2 rounded-xl bg-gray-100 hover:bg-gray-200/70 text-gray-700 text-xs font-extrabold transition">
+            ${showAllCategories ? '▲ تقليص قائمة المجالات' : `▼ عرض كل المجالات المتاحة (${totalCount} مجالاً)`}
+          </button>
+        ` : ''}
+      `;
+    }
+
+    function handleCategorySearchInput(val) {
+      categorySearchQuery = val;
+      const container = document.getElementById('categories-grid-container');
+      if (container) container.innerHTML = renderCategoriesGridInner();
+    }
+
+    function toggleShowAllCategories() {
+      showAllCategories = !showAllCategories;
+      const container = document.getElementById('categories-grid-container');
+      if (container) container.innerHTML = renderCategoriesGridInner();
+    }
+
+    function updateItemAutocompleteSuggestions(val) {
+      const box = document.getElementById('item-autocomplete-box');
+      if (!box) return;
+      const q = normalizeArabicText(val);
+      if (q.length < 2 || wilayaCatalogSuggestions.length === 0) {
+        box.classList.add('hidden');
+        return;
+      }
+
+      const uniqueNames = [];
+      const seen = new Set();
+      for (const item of wilayaCatalogSuggestions) {
+        const norm = normalizeArabicText(item.item_name);
+        if (norm.includes(q) && !seen.has(norm)) {
+          seen.add(norm);
+          uniqueNames.push(item);
+        }
+        if (uniqueNames.length >= 5) break;
+      }
+
+      if (uniqueNames.length === 0) {
+        box.classList.add('hidden');
+        return;
+      }
+
+      box.innerHTML = uniqueNames.map(it => `
+        <button type="button" onclick="selectAutocompleteItem('${escapeHTML(it.item_name)}')" class="w-full text-right px-3 py-2 text-xs hover:bg-emerald-50 flex justify-between items-center border-b border-gray-100 last:border-0">
+          <span class="font-bold text-gray-800">⚡ ${escapeHTML(it.item_name)}</span>
+          <span class="text-[11px] font-extrabold text-emerald-700">~ ${Number(it.unit_price).toLocaleString()} دج</span>
+        </button>
+      `).join('');
+      box.classList.remove('hidden');
+    }
+
+    function selectAutocompleteItem(name) {
+      const input = document.getElementById('item-name');
+      if (input) input.value = name;
+      const box = document.getElementById('item-autocomplete-box');
+      if (box) box.classList.add('hidden');
+      addDraftItem();
+    }
+
     function renderCustomerNewRequest() {
-      const cat = CATEGORIES[selectedCategory];
+      const cat = CATEGORIES[selectedCategory] || CATEGORIES.supermarket;
       return `
         <div class="space-y-4">
-          <div class="bg-white p-4 rounded-2xl shadow-sm border border-gray-100">
-            <h2 class="font-extrabold text-sm text-gray-800 mb-3">1. اختر مجال المشتريات</h2>
-            <div class="grid grid-cols-2 gap-2.5">
-              ${Object.entries(CATEGORIES).map(([key, c]) => `
-                <button type="button" onclick="selectCat('${key}')" class="p-3 rounded-xl border-2 text-right transition ${selectedCategory === key ? 'border-emerald-600 bg-emerald-50/70' : 'border-gray-100 bg-gray-50'}">
-                  <div class="text-2xl mb-1">${c.icon}</div>
-                  <div class="text-xs font-extrabold text-gray-800">${c.short}</div>
-                </button>
-              `).join('')}
+          <div class="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 space-y-2.5">
+            <div class="flex items-center justify-between">
+              <h2 class="font-extrabold text-sm text-gray-800">1. اختر مجال المشتريات</h2>
+              <span class="text-[11px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full">${cat.icon} ${escapeHTML(cat.short)}</span>
+            </div>
+
+            <div class="relative">
+              <input type="text" value="${escapeHTML(categorySearchQuery)}" oninput="handleCategorySearchInput(this.value)" placeholder="🔍 ابحث عن مجال... (هواتف، صيدلية، حلويات، دهانات...)" class="w-full px-3.5 py-2 rounded-xl border border-gray-200 bg-gray-50 focus:bg-white text-xs outline-none focus:border-emerald-500">
+            </div>
+
+            <div id="categories-grid-container">
+              ${renderCategoriesGridInner()}
             </div>
           </div>
 
@@ -1614,12 +2415,12 @@
             <h2 class="font-extrabold text-sm text-gray-800">2. تفاصيل الطلب والموقع والتوصيل</h2>
             <div>
               <label class="block text-xs font-bold text-gray-600 mb-1">عنوان مختصر للطلب</label>
-              <input id="req-title" type="text" value="${escapeHTML(draftReqTitle)}" oninput="draftReqTitle=this.value" placeholder="مثال: مقاضي الأسبوع / مواد بناء" class="w-full px-3.5 py-2.5 rounded-xl border border-gray-200 text-sm outline-none focus:border-emerald-500">
+              <input id="req-title" type="text" value="${escapeHTML(draftReqTitle)}" oninput="draftReqTitle=this.value" placeholder="مثال: مقاضي الأسبوع / ${escapeHTML(cat.short)}" class="w-full px-3.5 py-2.5 rounded-xl border border-gray-200 text-sm outline-none focus:border-emerald-500">
             </div>
 
             <div class="grid grid-cols-2 gap-2">
               <div>
-                <label class="block text-xs font-bold text-gray-600 mb-1">الولاية</label>
+                <label class="block text-xs font-bold text-gray-600 mb-1">الولاية (58 ولاية)</label>
                 <select id="req-wilaya" class="wilaya-select w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm bg-white outline-none"></select>
               </div>
               <div>
@@ -1637,24 +2438,31 @@
             </div>
 
             <div>
-              <label class="block text-xs font-bold text-gray-600 mb-1">طريقة الاستلام والتوصيل</label>
+              <label class="block text-xs font-bold text-gray-600 mb-1">طريقة الاستلام والتوصيل (حاسبة 58 ولاية)</label>
               <select id="req-delivery-type" onchange="draftDeliveryType=this.value" class="w-full px-3.5 py-2.5 rounded-xl border border-gray-200 text-sm bg-white outline-none">
-                <option value="delivery" ${draftDeliveryType === 'delivery' ? 'selected' : ''}>🚚 أحتاج توصيل للمنزل</option>
-                <option value="pickup" ${draftDeliveryType === 'pickup' ? 'selected' : ''}>🏪 استلام من المحل بنفسي</option>
+                <option value="delivery" ${draftDeliveryType === 'delivery' ? 'selected' : ''}>🚚 توصيل للمنزل (حسب تسعيرة الولاية)</option>
+                <option value="stopdesk" ${draftDeliveryType === 'stopdesk' ? 'selected' : ''}>🏢 توصيل للمكتب (Stop Desk)</option>
+                <option value="pickup" ${draftDeliveryType === 'pickup' ? 'selected' : ''}>🏪 استلام من المحل بنفسي (0 دج)</option>
               </select>
             </div>
 
             <div class="bg-gray-50 p-3 rounded-xl border border-gray-200/70">
-              <label class="block text-xs font-bold text-gray-700 mb-2">أضف المواد المطلوبة (${draftItems.length}):</label>
+              <div class="flex items-center justify-between mb-2">
+                <label class="block text-xs font-bold text-gray-700">أضف المواد المطلوبة (${draftItems.length}):</label>
+                <span class="text-[10px] font-bold text-emerald-700">⚡ تسعير آلي فوري</span>
+              </div>
               <div class="flex gap-1.5 overflow-x-auto hide-scroll pb-2 mb-2">
                 ${cat.suggestions.map(s => `
-                  <button type="button" onclick="quickAddItem('${s}')" class="shrink-0 text-[11px] bg-white border border-emerald-200 text-emerald-700 px-2.5 py-1 rounded-full font-bold">+ ${s}</button>
+                  <button type="button" onclick="quickAddItem('${escapeHTML(s)}')" class="shrink-0 text-[11px] bg-white border border-emerald-200 text-emerald-700 px-2.5 py-1 rounded-full font-bold">+ ${escapeHTML(s)}</button>
                 `).join('')}
               </div>
-              <div class="flex gap-2">
-                <input id="item-name" type="text" onkeydown="if(event.key==='Enter'){event.preventDefault();addDraftItem();}" placeholder="اسم المادة..." class="flex-1 px-3 py-2 rounded-lg border border-gray-200 bg-white text-xs outline-none">
-                <input id="item-qty" type="text" onkeydown="if(event.key==='Enter'){event.preventDefault();addDraftItem();}" placeholder="الكمية" class="w-20 px-2.5 py-2 rounded-lg border border-gray-200 bg-white text-xs outline-none">
-                <button type="button" onclick="addDraftItem()" class="bg-emerald-600 text-white px-3.5 py-2 rounded-lg text-xs font-bold">إضافة</button>
+              <div class="relative">
+                <div class="flex gap-2">
+                  <input id="item-name" type="text" oninput="updateItemAutocompleteSuggestions(this.value)" onkeydown="if(event.key==='Enter'){event.preventDefault();addDraftItem();}" placeholder="اسم المادة أو الباركود..." class="flex-1 px-3 py-2 rounded-lg border border-gray-200 bg-white text-xs outline-none">
+                  <input id="item-qty" type="text" onkeydown="if(event.key==='Enter'){event.preventDefault();addDraftItem();}" placeholder="الكمية" class="w-20 px-2.5 py-2 rounded-lg border border-gray-200 bg-white text-xs outline-none">
+                  <button type="button" onclick="addDraftItem()" class="bg-emerald-600 text-white px-3.5 py-2 rounded-lg text-xs font-bold">إضافة</button>
+                </div>
+                <div id="item-autocomplete-box" class="hidden absolute left-0 right-0 top-full mt-1 bg-white rounded-xl shadow-lg border border-emerald-200 z-20 overflow-hidden"></div>
               </div>
               <div id="draft-items-list" class="mt-2.5 space-y-1.5">
                 ${draftItems.map((it, idx) => `
@@ -1667,7 +2475,7 @@
             </div>
 
             <button type="button" onclick="submitQuoteRequest()" id="send-req-btn" class="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold py-3.5 rounded-xl shadow-md text-sm">
-              🚀 إرسال طلب التسعيرة للتجار الآن
+              🚀 إرسال الطلب والحصول على التسعير الآلي
             </button>
           </div>
         </div>`;
@@ -1698,11 +2506,11 @@
       const btn = document.getElementById('send-req-btn');
       if (btn) {
         btn.disabled = true;
-        btn.textContent = 'جاري إرسال الطلب...';
+        btn.textContent = 'جاري إرسال الطلب وحساب أسعار التجار...';
       }
 
       try {
-        const { error } = await sb.from('quote_requests').insert({
+        const reqPayload = {
           customer_id: currentProfile.id,
           category: selectedCategory,
           wilaya,
@@ -1713,24 +2521,43 @@
           latitude: currentProfile.latitude || null,
           longitude: currentProfile.longitude || null,
           status: 'open'
-        });
+        };
+
+        const { data: insertedReq, error } = await sb.from('quote_requests').insert(reqPayload).select('*').single();
 
         if (error) {
           showToast('حدث خطأ: ' + error.message, true);
         } else {
+          // تشغيل محرك التسعير الآلي الفوري من لوجيسيال التجار
+          const autoRepliesCount = await runInstantAutoPricingForRequest(insertedReq || reqPayload);
+
           draftItems = [];
           draftReqTitle = '';
           draftDeliveryType = 'delivery';
-          showToast('✅ تم إرسال طلبك للتجار بنجاح!');
+          if (autoRepliesCount > 0) {
+            showToast(`⚡ وصلتك ${autoRepliesCount} تسعيرات آلية فورية من محلات ولايتك!`);
+          } else {
+            showToast('✅ تم إرسال طلبك للتجار بنجاح!');
+          }
           await loadAllData();
           switchTab('orders');
         }
       } finally {
         if (btn) {
           btn.disabled = false;
-          btn.textContent = '🚀 إرسال طلب التسعيرة للتجار الآن';
+          btn.textContent = '🚀 إرسال الطلب والحصول على التسعير الآلي';
         }
       }
+    }
+
+    async function refreshAutoQuotesForOrder(reqId) {
+      const reqObj = myRequests.find(r => String(r.id) === String(reqId));
+      if (!reqObj) return;
+      showToast('🔄 جاري البحث عن تسعيرات آلية إضافية...');
+      const count = await runInstantAutoPricingForRequest(reqObj);
+      if (count > 0) showToast(`⚡ تم إضافة ${count} تسعيرات جديدة!`);
+      else showToast('لا توجد تسعيرات آلية جديدة حالياً');
+      await loadAllData();
     }
 
     async function cancelCustomerRequest(reqId) {
@@ -1764,12 +2591,17 @@
             return Number(a.total_price) - Number(b.total_price);
           });
 
+          const catInfo = CATEGORIES[req.category];
+
           return `
             <div class="bg-white rounded-2xl p-4 shadow-sm border ${req.status === 'accepted' ? 'border-emerald-500 bg-emerald-50/20' : 'border-gray-100'} space-y-3">
               <div class="flex justify-between items-start gap-2">
                 <div>
-                  <h3 class="font-extrabold text-sm text-gray-900">${escapeHTML(req.title)}</h3>
-                  <p class="text-[11px] text-gray-400">📅 ${formatTimeAgo(req.created_at)} • ${req.delivery_type === 'delivery' ? '🚚 توصيل للمنزل' : '🏪 استلام من المحل'}</p>
+                  <div class="flex items-center gap-1.5">
+                    ${catInfo ? `<span class="text-xs bg-gray-100 text-gray-700 px-2 py-0.5 rounded-md font-bold">${catInfo.icon} ${escapeHTML(catInfo.short)}</span>` : ''}
+                    <h3 class="font-extrabold text-sm text-gray-900">${escapeHTML(req.title)}</h3>
+                  </div>
+                  <p class="text-[11px] text-gray-400 mt-0.5">📅 ${formatTimeAgo(req.created_at)} • ${req.delivery_type === 'delivery' ? '🚚 توصيل للمنزل' : (req.delivery_type === 'stopdesk' ? '🏢 مكتب التوصيل Stop Desk' : '🏪 استلام من المحل')}</p>
                 </div>
                 <div class="flex items-center gap-1.5 shrink-0">
                   <span class="text-xs ${req.status === 'accepted' ? 'bg-emerald-600 text-white' : 'bg-emerald-50 text-emerald-700'} px-2.5 py-1 rounded-full font-bold">
@@ -1780,7 +2612,12 @@
               </div>
 
               <div class="space-y-2 pt-2 border-t border-gray-100">
-                ${offers.length === 0 ? `<p class="text-xs text-gray-400 text-center py-2">في انتظار تسعيرات التجار...</p>` : offers.map(of => {
+                ${offers.length === 0 ? `
+                  <div class="text-center py-3 space-y-2">
+                    <p class="text-xs text-gray-400">في انتظار تسعيرات التجار...</p>
+                    <button onclick="refreshAutoQuotesForOrder('${req.id}')" class="bg-emerald-50 text-emerald-700 border border-emerald-200 px-3 py-1.5 rounded-xl text-xs font-bold">🔄 فحص التسعير الآلي مجدداً</button>
+                  </div>
+                ` : offers.map(of => {
                   let distText = '';
                   if (currentProfile.latitude && currentProfile.longitude && of.profiles?.latitude && of.profiles?.longitude) {
                     const d = calculateDistance(currentProfile.latitude, currentProfile.longitude, of.profiles.latitude, of.profiles.longitude);
@@ -1788,12 +2625,18 @@
                   }
                   const waPhone = formatDzWhatsApp(of.profiles?.phone || '');
                   const isAccepted = of.status === 'accepted';
+                  const pricedList = of.priced_items || [];
+                  const availCount = pricedList.filter(pi => pi.available !== false && Number(pi.price) > 0).length;
+                  const totalReqItems = pricedList.length;
 
                   return `
                     <div class="p-3 rounded-xl border space-y-2 ${isAccepted ? 'bg-emerald-50 border-emerald-300' : 'bg-gray-50 border-gray-200'}">
-                      <div class="flex justify-between items-center">
+                      <div class="flex justify-between items-start">
                         <div>
-                          <span class="font-extrabold text-xs cursor-pointer text-emerald-600 hover:underline" onclick="viewUserProfile('${of.merchant_id}')">${escapeHTML(of.profiles?.shop_name || 'محل تجاري')} ⭐</span>
+                          <div class="flex items-center gap-1.5">
+                            <span class="font-extrabold text-xs cursor-pointer text-emerald-700 hover:underline" onclick="viewUserProfile('${of.merchant_id}')">${escapeHTML(of.profiles?.shop_name || 'محل تجاري')} ⭐</span>
+                            ${totalReqItems > 0 ? `<span class="text-[10px] px-2 py-0.5 rounded-full font-bold ${availCount === totalReqItems ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'}">متوفر ${availCount}/${totalReqItems}</span>` : ''}
+                          </div>
                           <div>${distText}</div>
                         </div>
                         <span class="text-base font-extrabold text-emerald-700">${Number(of.total_price).toLocaleString()} دج</span>
@@ -1801,14 +2644,17 @@
                       
                       <div class="bg-white p-2.5 rounded-xl border border-gray-100 text-xs space-y-1">
                         <div class="font-bold text-gray-700">تفاصيل عرض السعر:</div>
-                        ${(of.priced_items || []).map(pi => `
-                          <div class="flex justify-between text-gray-600">
-                            <span>${escapeHTML(pi.name)} (${escapeHTML(pi.qty)}):</span>
-                            <span class="font-bold">${Number(pi.price || 0).toLocaleString()} دج</span>
-                          </div>
-                        `).join('')}
+                        ${pricedList.map(pi => {
+                          const isMissing = pi.available === false || Number(pi.price || 0) <= 0;
+                          return `
+                            <div class="flex justify-between ${isMissing ? 'text-red-500' : 'text-gray-600'}">
+                              <span>${escapeHTML(pi.name)} (${escapeHTML(pi.qty)}):</span>
+                              <span class="font-bold">${isMissing ? 'غير متوفر حالياً' : Number(pi.price).toLocaleString() + ' دج'}</span>
+                            </div>
+                          `;
+                        }).join('')}
                         <div class="flex justify-between text-gray-600 pt-1 border-t">
-                          <span>سعر التوصيل:</span>
+                          <span>سعر التوصيل (${req.delivery_type === 'stopdesk' ? 'Stop Desk' : (req.delivery_type === 'delivery' ? 'للمنزل' : 'استلام')}):</span>
                           <span class="font-bold">${Number(of.delivery_fee || 0).toLocaleString()} دج</span>
                         </div>
                         <div class="flex justify-between text-emerald-800 font-extrabold pt-1 border-t">
@@ -1850,7 +2696,7 @@
         <div class="bg-white p-3 rounded-2xl border border-gray-100 flex justify-between items-center">
           <span class="text-xs font-bold text-gray-700">نطاق عرض الطلبات:</span>
           <button onclick="toggleWilayaScope()" class="text-xs font-bold px-3 py-1.5 rounded-xl ${showAllWilayas ? 'bg-amber-100 text-amber-800' : 'bg-emerald-50 text-emerald-700'}">
-            ${showAllWilayas ? '🌍 كل الولايات' : `📍 ${escapeHTML(currentProfile.wilaya)} فقط`}
+            ${showAllWilayas ? '🌍 كل الولايات (58)' : `📍 ${escapeHTML(currentProfile.wilaya)} فقط`}
           </button>
         </div>
 
@@ -1872,7 +2718,7 @@
               <div class="bg-white rounded-2xl p-4 shadow-sm border border-gray-100 space-y-2.5">
                 <div>
                   <h3 class="font-extrabold text-sm text-gray-900">${escapeHTML(req.title)}</h3>
-                  <p class="text-[11px] text-gray-400">الزبون: ${escapeHTML(req.municipality || req.wilaya)} • 📅 ${formatTimeAgo(req.created_at)} • ${req.delivery_type === 'delivery' ? '🚚 يحتاج توصيل للمنزل' : '🏪 استلام من المحل'}</p>
+                  <p class="text-[11px] text-gray-400">الزبون: ${escapeHTML(req.municipality || req.wilaya)} • 📅 ${formatTimeAgo(req.created_at)} • ${req.delivery_type === 'delivery' ? '🚚 يحتاج توصيل للمنزل' : (req.delivery_type === 'stopdesk' ? '🏢 مكتب التوصيل Stop Desk' : '🏪 استلام من المحل')}</p>
                   ${distText}
                   ${req.latitude && req.longitude ? `
                     <div class="mt-2">
@@ -1900,7 +2746,7 @@
                       </div>` : ''}
 
                     <div class="grid grid-cols-2 gap-2">
-                      <input type="number" id="fee-${req.id}" oninput="recalcTotal('${req.id}', ${req.items ? req.items.length : 0})" placeholder="سعر التوصيل (دج)" class="px-3.5 py-2.5 rounded-xl border border-gray-200 text-xs outline-none">
+                      <input type="number" id="fee-${req.id}" value="${calcMerchantDeliveryFeeForWilaya(currentProfile, req.wilaya, req.delivery_type)}" oninput="recalcTotal('${req.id}', ${req.items ? req.items.length : 0})" placeholder="سعر التوصيل (دج)" class="px-3.5 py-2.5 rounded-xl border border-gray-200 text-xs outline-none">
                       <input type="number" id="price-${req.id}" placeholder="السعر الإجمالي شامل التوصيل" class="px-3.5 py-2.5 rounded-xl border-2 border-emerald-300 bg-emerald-50/30 text-xs font-extrabold text-emerald-800 outline-none">
                     </div>
                     <button onclick="sendMerchantOffer('${req.id}')" class="w-full bg-emerald-600 text-white font-bold py-2.5 rounded-xl text-xs shadow-sm">
@@ -1936,11 +2782,15 @@
       const reqObj = openRequests.find(r => r.id === reqId);
       let pricedItems = [];
       if (reqObj && reqObj.items && reqObj.items.length > 0) {
-        pricedItems = reqObj.items.map((it, idx) => ({
-          name: it.name,
-          qty: it.qty,
-          price: Number(document.getElementById(`item-price-${reqId}-${idx}`)?.value || 0)
-        }));
+        pricedItems = reqObj.items.map((it, idx) => {
+          const itemPrice = Number(document.getElementById(`item-price-${reqId}-${idx}`)?.value || 0);
+          return {
+            name: it.name,
+            qty: it.qty,
+            price: itemPrice,
+            available: itemPrice > 0
+          };
+        });
       }
 
       const { error } = await sb.from('quote_offers').insert({
@@ -1986,6 +2836,10 @@
                 <label class="block text-xs font-bold text-gray-700 mb-1">اسم المحل التجاري</label>
                 <input type="text" id="edit-shop" value="${escapeHTML(currentProfile.shop_name || '')}" class="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm outline-none">
               </div>
+              <div>
+                <label class="block text-xs font-bold text-gray-700 mb-1">مجال / تخصص المحل</label>
+                <select id="edit-category" class="category-select w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm bg-white outline-none"></select>
+              </div>
             ` : ''}
             <div>
               <label class="block text-xs font-bold text-gray-700 mb-1">رقم الهاتف</label>
@@ -2026,12 +2880,14 @@
       const wilaya = document.getElementById('edit-wilaya').value;
       const municipality = document.getElementById('edit-municipality').value.trim();
       const shopName = document.getElementById('edit-shop') ? document.getElementById('edit-shop').value.trim() : null;
+      const category = document.getElementById('edit-category') ? document.getElementById('edit-category').value : null;
 
       if (!fullName) return showToast('يرجى كتابة الاسم الكامل', true);
       if (!isValidDzPhone(phone)) return showToast('يرجى إدخال رقم هاتف جزائري صحيح', true);
 
       const updateData = { full_name: fullName, phone, wilaya, municipality };
       if (shopName !== null) updateData.shop_name = shopName;
+      if (category !== null) updateData.category = category;
       if (editAvatarUrl) updateData.avatar_url = editAvatarUrl;
 
       const { error } = await sb.from('profiles').update(updateData).eq('id', currentProfile.id);
