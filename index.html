@@ -9,21 +9,21 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <link rel="manifest" href="/manifest.json">
   <title>تسعيرتي DZ — قارن الأسعار في ولايتك</title>
-<!-- إعدادات المعاينة عند مشاركة الرابط (Open Graph) -->
-<meta name="description" content="اطلب تسعيرة لمشترياتك في السوبرماركت، مواد البناء، الكهرومنزلية، وقطع الغيار وقارن عروض الأسعار من تجار ولايتك في الجزائر مجاناً.">
-<meta property="og:type" content="website">
-<meta property="og:site_name" content="تسعيرتي DZ">
-<meta property="og:title" content="تسعيرتي DZ — قارن أسعار المحلات في ولايتك">
-<meta property="og:description" content="أنشئ قائمة مشترياتك واستقبل عروض الأسعار مباشرة من التجار القريبين منك مع خيار التوصيل لـ 58 ولاية.">
-<meta property="og:url" content="https://tasairati-dz.vercel.app/">
-<meta property="og:image" content="https://tasairati-dz.vercel.app/icon-512.png">
-<meta property="og:image:width" content="512">
-<meta property="og:image:height" content="512">
-<meta name="twitter:card" content="summary_large_image">
+  <meta name="description" content="اطلب تسعيرة لمشترياتك في السوبرماركت، مواد البناء، الكهرومنزلية، وقطع الغيار وقارن عروض الأسعار من تجار ولايتك في الجزائر مجاناً.">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="تسعيرتي DZ">
+  <meta property="og:title" content="تسعيرتي DZ — قارن أسعار المحلات في ولايتك">
+  <meta property="og:description" content="أنشئ قائمة مشترياتك واستقبل عروض الأسعار مباشرة من التجار القريبين منك مع خيار التوصيل لـ 58 ولاية.">
+  <meta property="og:url" content="https://tasairati-dz.vercel.app/">
+  <meta property="og:image" content="https://tasairati-dz.vercel.app/icon-512.png">
+  <meta property="og:image:width" content="512">
+  <meta property="og:image:height" content="512">
+  <meta name="twitter:card" content="summary_large_image">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800&display=swap" rel="stylesheet">
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.39.7/dist/umd/supabase.min.js"></script>
+  <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
   <style>
     * { font-family: 'Cairo', sans-serif; -webkit-tap-highlight-color: transparent; }
     body { background-color: #f3f4f6; padding-bottom: 85px; }
@@ -53,6 +53,30 @@
     const SUPABASE_ANON_KEY = 'sb_publishable_4Q7NEBUeW7EXn00rO68X6g_5bpaeOLW';
   </script>
 
+  <!-- نافذة ماسح الباركود بالكاميرا (المرحلة 3) -->
+  <div id="barcode-scanner-modal" class="fixed inset-0 bg-black/80 z-50 hidden flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl w-full max-w-sm p-4 space-y-3 shadow-2xl relative">
+      <div class="flex justify-between items-center border-b pb-2">
+        <h3 class="font-extrabold text-sm text-gray-900">📷 مسح الباركود بالكاميرا</h3>
+        <button onclick="stopBarcodeScanner()" class="text-red-600 font-extrabold text-lg px-2">✕</button>
+      </div>
+      <div id="qr-reader" class="w-full rounded-xl overflow-hidden bg-black min-h-[240px]"></div>
+      <p class="text-[11px] text-gray-500 text-center">وجّه كاميرا الهاتف نحو رمز الباركود الخاص بالسلعة</p>
+    </div>
+  </div>
+
+  <!-- نافذة بطاقة العرض الترويجية الجاهزة للمشاركة (المرحلة 3) -->
+  <div id="promo-card-modal" class="fixed inset-0 bg-black/60 z-50 hidden flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl w-full max-w-sm p-4 space-y-3 shadow-2xl relative">
+      <button onclick="document.getElementById('promo-card-modal').classList.add('hidden')" class="absolute top-3 left-3 text-gray-400 font-bold text-lg">✕</button>
+      <div id="promo-card-content" class="bg-gradient-to-br from-orange-500 via-amber-500 to-emerald-600 text-white rounded-2xl p-5 text-center space-y-2.5 shadow-lg"></div>
+      <div class="grid grid-cols-2 gap-2">
+        <button onclick="copyPromoCardText()" class="bg-gray-900 text-white py-2.5 rounded-xl text-xs font-bold">📋 نسخ الإعلان</button>
+        <a id="promo-wa-share" href="#" target="_blank" class="bg-[#25D366] text-white py-2.5 rounded-xl text-xs font-bold text-center">💬 نشر في واتساب</a>
+      </div>
+    </div>
+  </div>
+
   <!-- شريط الإشعارات -->
   <div id="toast" class="fixed top-4 left-4 right-4 max-w-md mx-auto z-50 hidden transition-all duration-300">
     <div id="toast-box" class="px-4 py-3 rounded-xl shadow-lg text-white text-sm font-bold text-center"></div>
@@ -76,9 +100,7 @@
         </div>
         <button onclick="closeInvoiceModal()" class="text-gray-400 hover:text-gray-700 font-extrabold text-lg px-1">✕</button>
       </div>
-
       <div id="invoice-printable-area" class="bg-white border border-gray-200 rounded-xl p-3.5 text-xs space-y-2.5"></div>
-
       <div id="invoice-modal-actions" class="space-y-2 pt-1 no-print"></div>
     </div>
   </div>
@@ -88,9 +110,9 @@
     <div class="bg-white rounded-2xl w-full max-w-sm p-5 space-y-3 shadow-2xl relative max-h-[90vh] overflow-y-auto">
       <button onclick="closeDirectSaleModal()" class="absolute top-3 left-3 text-gray-400 hover:text-gray-600 font-bold text-lg">✕</button>
       <h3 class="font-extrabold text-sm text-gray-900">🏪 تسجيل بيع مباشر في المحل</h3>
+      <button type="button" onclick="openBarcodeScanner('direct_sale')" class="w-full bg-gray-900 text-white py-2 rounded-xl text-xs font-bold">📷 مسح باركود السلعة بالكاميرا</button>
       <p class="text-[11px] text-gray-500">يُضاف مباشرة إلى مداخيل وأرباح اليوم ويُصدر له وصل فوري</p>
 
-      ${/* اختيار من المخزون أو كتابة حرة */ ''}
       <div>
         <label class="block text-xs font-bold text-gray-700 mb-1">اختر سلعة من مخزونك (اختياري)</label>
         <select id="ds-inv-select" onchange="onSelectDirectSaleInventory(this.value)" class="w-full px-3 py-2 rounded-xl border border-gray-200 text-xs bg-white outline-none">
@@ -311,118 +333,22 @@
     ];
 
     const CATEGORIES = {
-      supermarket: {
-        name: 'المواد الغذائية والتنظيف (سوبرماركت)',
-        short: 'سوبرماركت',
-        icon: '🛒',
-        keywords: 'غذائية أكل زيت سكر قهوة حليب تنظيف صابون سوبيريت مواد غذائية',
-        suggestions: ['زيت المائدة 5ل', 'سكر 5كغ', 'قهوة 250غ', 'سائل غسيل الملابس', 'حفاضات أطفال']
-      },
-      produce_meat: {
-        name: 'خضر، فواكه ولحوم',
-        short: 'خضر ولحوم',
-        icon: '🥩',
-        keywords: 'خضر فواكه لحم دجاج جزارة سمك بيض بطاطا طماطم لحوم',
-        suggestions: ['صدر دجاج 1كغ', 'لحم مفروم 1كغ', 'طبق بيض 30', 'بطاطا 5كغ', 'طماطم 2كغ']
-      },
-      building: {
-        name: 'مواد البناء والترميم',
-        short: 'مواد البناء',
-        icon: '🧱',
-        keywords: 'بناء إسمنت سيما حديد رمل حصى قرميد بناءات ترصيص',
-        suggestions: ['إسمنت 50كغ', 'حديد تسليح 12مم', 'رمل بناء', 'حصى', 'آجر أحمر']
-      },
-      paint_decor: {
-        name: 'دهانات، طلاء وديكور',
-        short: 'دهانات وديكور',
-        icon: '🎨',
-        keywords: 'دهان صبيغة طلاء جبس ديكور بلاكو بلاتر ألوان',
-        suggestions: ['طلاء مائي 20كغ', 'معجون جدران', 'طلاء زيتي', 'رولو طلاء', 'ألواح جبس']
-      },
-      auto: {
-        name: 'قطع غيار السيارات',
-        short: 'قطع الغيار',
-        icon: '🚗',
-        keywords: 'سيارات قطع غيار ميكانيك زيت محرك فرامل بطارية فلترات',
-        suggestions: ['صفائح الفرامل', 'فلتر زيت', 'طقم التوزيع', 'بطارية 60Ah', 'زيت محرك 5W40']
-      },
-      moto: {
-        name: 'قطع غيار الدراجات النارية',
-        short: 'دراجات نارية',
-        icon: '🏍️',
-        keywords: 'موطو دراجة نارية سكوتر كاسك عجلات سلسلة دراجات',
-        suggestions: ['إطار دراجة نارية', 'سلسلة نقل الحركة', 'زيت محرك 4T', 'خوذة حماية', 'بطارية دراجة']
-      },
-      appliances: {
-        name: 'الأجهزة الكهرومنزلية',
-        short: 'كهرومنزلية',
-        icon: '🔌',
-        keywords: 'كهرومنزلية ثلاجة غسالة مكيف تلفاز فرن طباخة كليماتيزور',
-        suggestions: ['مكيف هواء 12000', 'ثلاجة', 'غسالة ملابس', 'تلفاز ذكي 43 بوصة', 'فرن كهربائي']
-      },
-      phones: {
-        name: 'هواتف ذكية وإكسسوارات',
-        short: 'هواتف وإكسسوارات',
-        icon: '📱',
-        keywords: 'هاتف بورتابل شاحن سماعات كابل جراب تصليح هواتف موبيل',
-        suggestions: ['شاحن سريع 33W', 'سماعات بلوتوث', 'زجاج حماية', 'كابل Type-C', 'باور بانك 10000']
-      },
-      it_office: {
-        name: 'إعلام آلي، طابعات ومكتبات',
-        short: 'إعلام آلي ومكتبة',
-        icon: '💻',
-        keywords: 'حاسوب لابتوب طابعة حبر مكتبة كراريس أدوات مدرسية بيسي',
-        suggestions: ['حبر طابعة', 'ورق طباعة A4', 'فأرة لاسلكية', 'حقيبة حاسوب', 'كراريس مدرسية']
-      },
-      pharmacy: {
-        name: 'صيدلية وشبه صيدلية',
-        short: 'صيدلية ومستلزمات',
-        icon: '⚕️',
-        keywords: 'صيدلية دواء مكملات غذائية رضيع حليب أطفال تجميل طبي فارماسي',
-        suggestions: ['حليب رضع', 'فيتامينات ومكملات', 'واقي شمس طبي', 'جهاز قياس الضغط', 'معقم طبي']
-      },
-      clothing: {
-        name: 'ملابس، أحذية وعطور',
-        short: 'ملابس وعطور',
-        icon: '👕',
-        keywords: 'ملابس ألبسة أحذية سباط عطور بارفان أطفال رجال نساء',
-        suggestions: ['حذاء رياضي', 'قميص رجالي', 'عطر 100مل', 'طقم أطفال', 'حقيبة يد']
-      },
-      homeware: {
-        name: 'أواني منزلية وتجهيز المطبخ',
-        short: 'أواني منزلية',
-        icon: '🍽️',
-        keywords: 'أواني مطبخ طنجرة كوكوط صحون كؤوس أفرشة ديكور منزلي',
-        suggestions: ['طنجرة ضغط', 'طقم صحون', 'مقلاة غير لاصقة', 'طقم كؤوس', 'خلاط كهربائي']
-      },
-      bakery_supplies: {
-        name: 'لوازم الحلويات والتغليف',
-        short: 'لوازم الحلويات',
-        icon: '🧁',
-        keywords: 'حلويات قاطو شوكولاتة فرينة تغليف علب كرتون كريم شانتيي',
-        suggestions: ['شوكولاتة خام 1كغ', 'علب تغليف حلويات', 'كريم شانتيي', 'لوز مرحي', 'ملونات غذائية']
-      },
-      agriculture: {
-        name: 'لوازم الفلاحة والبستنة',
-        short: 'فلاحة وبستنة',
-        icon: '🌱',
-        keywords: 'فلاحة بذور أسمدة سقي أنابيب مبيدات أشجار جنان',
-        suggestions: ['أنبوب سقي بالتقطير', 'سماد عضوي', 'بذور خضروات', 'مرش مبيدات', 'مقص تقليم']
-      },
-      sewing: {
-        name: 'خياطة، أقمشة وستائر',
-        short: 'خياطة وأقمشة',
-        icon: '🧵',
-        keywords: 'خياطة قماش ستائر ريدو خيوط آلة خياطة أزرار تفصيل',
-        suggestions: ['قماش ستائر', 'بكرة خيط خياطة', 'إبر ماكينة خياطة', 'سحابات ملابس', 'شريط تزيين']
-      },
-      cosmetics: {
-        name: 'مواد التجميل والعناية الشخصية',
-        short: 'تجميل وعناية',
-        icon: '🧴',
-        keywords: 'تجميل كوسميتيك شامبو كريم عناية بشرة شعر مكياج',
-        suggestions: ['شامبو للشعر', 'كريم مرطب', 'غسول وجه', 'مزيل عرق', 'زيت الأرغان']
-      }
+      supermarket: { name: 'المواد الغذائية والتنظيف (سوبرماركت)', short: 'سوبرماركت', icon: '🛒', keywords: 'غذائية أكل زيت سكر قهوة حليب تنظيف صابون سوبيريت مواد غذائية', suggestions: ['زيت المائدة 5ل', 'سكر 5كغ', 'قهوة 250غ', 'سائل غسيل الملابس', 'حفاضات أطفال'] },
+      produce_meat: { name: 'خضر، فواكه ولحوم', short: 'خضر ولحوم', icon: '🥩', keywords: 'خضر فواكه لحم دجاج جزارة سمك بيض بطاطا طماطم لحوم', suggestions: ['صدر دجاج 1كغ', 'لحم مفروم 1كغ', 'طبق بيض 30', 'بطاطا 5كغ', 'طماطم 2كغ'] },
+      building: { name: 'مواد البناء والترميم', short: 'مواد البناء', icon: '🧱', keywords: 'بناء إسمنت سيما حديد رمل حصى قرميد بناءات ترصيص', suggestions: ['إسمنت 50كغ', 'حديد تسليح 12مم', 'رمل بناء', 'حصى', 'آجر أحمر'] },
+      paint_decor: { name: 'دهانات، طلاء وديكور', short: 'دهانات وديكور', icon: '🎨', keywords: 'دهان صبيغة طلاء جبس ديكور بلاكو بلاتر ألوان', suggestions: ['طلاء مائي 20كغ', 'معجون جدران', 'طلاء زيتي', 'رولو طلاء', 'ألواح جبس'] },
+      auto: { name: 'قطع غيار السيارات', short: 'قطع الغيار', icon: '🚗', keywords: 'سيارات قطع غيار ميكانيك زيت محرك فرامل بطارية فلترات', suggestions: ['صفائح الفرامل', 'فلتر زيت', 'طقم التوزيع', 'بطارية 60Ah', 'زيت محرك 5W40'] },
+      moto: { name: 'قطع غيار الدراجات النارية', short: 'دراجات نارية', icon: '🏍️', keywords: 'موطو دراجة نارية سكوتر كاسك عجلات سلسلة دراجات', suggestions: ['إطار دراجة نارية', 'سلسلة نقل الحركة', 'زيت محرك 4T', 'خوذة حماية', 'بطارية دراجة'] },
+      appliances: { name: 'الأجهزة الكهرومنزلية', short: 'كهرومنزلية', icon: '🔌', keywords: 'كهرومنزلية ثلاجة غسالة مكيف تلفاز فرن طباخة كليماتيزور', suggestions: ['مكيف هواء 12000', 'ثلاجة', 'غسالة ملابس', 'تلفاز ذكي 43 بوصة', 'فرن كهربائي'] },
+      phones: { name: 'هواتف ذكية وإكسسوارات', short: 'هواتف وإكسسوارات', icon: '📱', keywords: 'هاتف بورتابل شاحن سماعات كابل جراب تصليح هواتف موبيل', suggestions: ['شاحن سريع 33W', 'سماعات بلوتوث', 'زجاج حماية', 'كابل Type-C', 'باور بانك 10000'] },
+      it_office: { name: 'إعلام آلي، طابعات ومكتبات', short: 'إعلام آلي ومكتبة', icon: '💻', keywords: 'حاسوب لابتوب طابعة حبر مكتبة كراريس أدوات مدرسية بيسي', suggestions: ['حبر طابعة', 'ورق طباعة A4', 'فأرة لاسلكية', 'حقيبة حاسوب', 'كراريس مدرسية'] },
+      pharmacy: { name: 'صيدلية وشبه صيدلية', short: 'صيدلية ومستلزمات', icon: '⚕️', keywords: 'صيدلية دواء مكملات غذائية رضيع حليب أطفال تجميل طبي فارماسي', suggestions: ['حليب رضع', 'فيتامينات ومكملات', 'واقي شمس طبي', 'جهاز قياس الضغط', 'معقم طبي'] },
+      clothing: { name: 'ملابس، أحذية وعطور', short: 'ملابس وعطور', icon: '👕', keywords: 'ملابس ألبسة أحذية سباط عطور بارفان أطفال رجال نساء', suggestions: ['حذاء رياضي', 'قميص رجالي', 'عطر 100مل', 'طقم أطفال', 'حقيبة يد'] },
+      homeware: { name: 'أواني منزلية وتجهيز المطبخ', short: 'أواني منزلية', icon: '🍽️', keywords: 'أواني مطبخ طنجرة كوكوط صحون كؤوس أفرشة ديكور منزلي', suggestions: ['طنجرة ضغط', 'طقم صحون', 'مقلاة غير لاصقة', 'طقم كؤوس', 'خلاط كهربائي'] },
+      bakery_supplies: { name: 'لوازم الحلويات والتغليف', short: 'لوازم الحلويات', icon: '🧁', keywords: 'حلويات قاطو شوكولاتة فرينة تغليف علب كرتون كريم شانتيي', suggestions: ['شوكولاتة خام 1كغ', 'علب تغليف حلويات', 'كريم شانتيي', 'لوز مرحي', 'ملونات غذائية'] },
+      agriculture: { name: 'لوازم الفلاحة والبستنة', short: 'فلاحة وبستنة', icon: '🌱', keywords: 'فلاحة بذور أسمدة سقي أنابيب مبيدات أشجار جنان', suggestions: ['أنبوب سقي بالتقطير', 'سماد عضوي', 'بذور خضروات', 'مرش مبيدات', 'مقص تقليم'] },
+      sewing: { name: 'خياطة، أقمشة وستائر', short: 'خياطة وأقمشة', icon: '🧵', keywords: 'خياطة قماش ستائر ريدو خيوط آلة خياطة أزرار تفصيل', suggestions: ['قماش ستائر', 'بكرة خيط خياطة', 'إبر ماكينة خياطة', 'سحابات ملابس', 'شريط تزيين'] },
+      cosmetics: { name: 'مواد التجميل والعناية الشخصية', short: 'تجميل وعناية', icon: '🧴', keywords: 'تجميل كوسميتيك شامبو كريم عناية بشرة شعر مكياج', suggestions: ['شامبو للشعر', 'كريم مرطب', 'غسول وجه', 'مزيل عرق', 'زيت الأرغان'] }
     };
 
     let sb = null;
@@ -461,29 +387,21 @@
     let selectedProfitDate = new Date().toISOString().split('T')[0];
     let profitUnlocked = false;
     let activeInvoiceData = null;
-    let invoicePrintFormat = 'a4'; // 'a4' | 'thermal'
+    let invoicePrintFormat = 'a4';
+
+    // متغيرات المرحلة الثالثة (الباركود + Flash Promo + Offline)
+    let html5QrScanner = null;
+    let activeBarcodeTarget = 'inventory';
+    let activePromoShareText = '';
 
     function escapeHTML(str) {
       if (str === null || str === undefined) return '';
-      return String(str)
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;')
-        .replace(/"/g, '&quot;')
-        .replace(/'/g, '&#039;');
+      return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#039;');
     }
 
     function normalizeArabicText(str) {
       if (!str) return '';
-      return String(str)
-        .toLowerCase()
-        .replace(/[\u064B-\u065F\u0670]/g, '')
-        .replace(/[أإآ]/g, 'ا')
-        .replace(/ة/g, 'ه')
-        .replace(/ى/g, 'ي')
-        .replace(/[^\w\u0600-\u06FF\s]/g, ' ')
-        .replace(/\s+/g, ' ')
-        .trim();
+      return String(str).toLowerCase().replace(/[\u064B-\u065F\u0670]/g, '').replace(/[أإآ]/g, 'ا').replace(/ة/g, 'ه').replace(/ى/g, 'ي').replace(/[^\w\u0600-\u06FF\s]/g, ' ').replace(/\s+/g, ' ').trim();
     }
 
     function normalizeDzPhone(phone) {
@@ -542,10 +460,7 @@
     function getLocalDateKey(dateString) {
       if (!dateString) return new Date().toISOString().split('T')[0];
       const d = new Date(dateString);
-      const yyyy = d.getFullYear();
-      const mm = String(d.getMonth() + 1).padStart(2, '0');
-      const dd = String(d.getDate()).padStart(2, '0');
-      return `${yyyy}-${mm}-${dd}`;
+      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
     }
 
     function showToast(msg, isError = false) {
@@ -566,15 +481,122 @@
     }
 
     function populateCategorySelects() {
-      const optionsHtml = Object.entries(CATEGORIES)
-        .map(([key, c]) => `<option value="${key}">${c.icon} ${escapeHTML(c.name)}</option>`)
-        .join('');
+      const optionsHtml = Object.entries(CATEGORIES).map(([key, c]) => `<option value="${key}">${c.icon} ${escapeHTML(c.name)}</option>`).join('');
       document.querySelectorAll('.category-select').forEach(sel => {
         const curVal = sel.value;
         sel.innerHTML = optionsHtml;
         if (curVal && CATEGORIES[curVal]) sel.value = curVal;
       });
     }
+
+    // --- دوال المرحلة 3: ماسح الباركود، بطاقة الإعلان، وضع Offline ---
+    function openBarcodeScanner(targetMode) {
+      activeBarcodeTarget = targetMode;
+      const modal = document.getElementById('barcode-scanner-modal');
+      modal.classList.remove('hidden');
+
+      if (typeof Html5Qrcode === 'undefined') {
+        showToast('تعذر تحميل مكتبة الكاميرا، تأكد من الاتصال', true);
+        return;
+      }
+
+      html5QrScanner = new Html5Qrcode("qr-reader");
+      html5QrScanner.start(
+        { facingMode: "environment" },
+        { fps: 10, qrbox: { width: 240, height: 140 } },
+        (decodedText) => {
+          stopBarcodeScanner();
+          handleScannedBarcodeResult(decodedText);
+        },
+        () => {}
+      ).catch(() => {
+        showToast('يرجى السماح للمتصفح باستخدام الكاميرا', true);
+        stopBarcodeScanner();
+      });
+    }
+
+    function stopBarcodeScanner() {
+      const modal = document.getElementById('barcode-scanner-modal');
+      if (modal) modal.classList.add('hidden');
+      if (html5QrScanner) {
+        html5QrScanner.stop().then(() => html5QrScanner.clear()).catch(() => {});
+        html5QrScanner = null;
+      }
+    }
+
+    function handleScannedBarcodeResult(code) {
+      const cleanCode = String(code || '').trim();
+      showToast(`✅ تم قراءة الباركود: ${cleanCode}`);
+      const matched = merchantInventory.find(i => String(i.barcode || '').trim() === cleanCode);
+
+      if (activeBarcodeTarget === 'direct_sale') {
+        if (matched) {
+          document.getElementById('ds-item-name').value = matched.item_name;
+          document.getElementById('ds-sell-price').value = matched.unit_price;
+          document.getElementById('ds-cost-price').value = matched.cost_price || '';
+          const sel = document.getElementById('ds-inv-select');
+          if (sel) sel.value = matched.id;
+        } else {
+          document.getElementById('ds-item-name').value = `سلعة باركود ${cleanCode}`;
+          showToast('الباركود غير مسجل في مخزونك، أدخل الاسم والسعر', true);
+        }
+      } else {
+        const barcodeInput = document.getElementById('inv-item-barcode');
+        if (barcodeInput) barcodeInput.value = cleanCode;
+        if (matched) {
+          document.getElementById('inv-item-name').value = matched.item_name;
+          document.getElementById('inv-item-price').value = matched.unit_price;
+          if (document.getElementById('inv-item-cost')) document.getElementById('inv-item-cost').value = matched.cost_price || '';
+          showToast('ℹ️ هذه السلعة مسجلة مسبقاً، يمكنك تحديث سعرها');
+        }
+      }
+    }
+
+    function openPromoCardGenerator(dealId) {
+      const deal = flashDeals.find(d => String(d.id) === String(dealId));
+      if (!deal) return;
+      const shopName = currentProfile.shop_name || currentProfile.full_name;
+      const tiersText = (deal.tiers || []).map(t => `🔥 ${escapeHTML(t.label)} ⬅️ ${Number(t.price).toLocaleString()} دج`).join('<br>');
+
+      document.getElementById('promo-card-content').innerHTML = `
+        <div class="text-xs font-extrabold bg-black/25 inline-block px-3 py-1 rounded-full">⚡ عرض حصري محدود</div>
+        <h3 class="text-lg font-extrabold leading-snug">${escapeHTML(deal.title)}</h3>
+        ${deal.description ? `<p class="text-xs text-white/90">${escapeHTML(deal.description)}</p>` : ''}
+        <div class="bg-white/15 backdrop-blur-sm rounded-xl p-3 text-sm font-extrabold space-y-1">${tiersText}</div>
+        <div class="text-xs font-bold pt-1">🏪 ${escapeHTML(shopName)} • 📍 ${escapeHTML(deal.wilaya)}</div>
+        <div class="text-[11px] bg-white text-emerald-800 font-extrabold py-1.5 px-3 rounded-lg">اطلب الآن عبر تطبيق تسعيرتي DZ</div>
+      `;
+
+      const plainTiers = (deal.tiers || []).map(t => `• ${t.label}: ${Number(t.price).toLocaleString()} دج`).join('\n');
+      activePromoShareText = `⚡ *عرض خاص من ${shopName}*\n🔥 *${deal.title}*\n${deal.description ? deal.description + '\n' : ''}\n${plainTiers}\n📍 الولاية: ${deal.wilaya}\n📲 اطلبه مباشرة عبر تطبيق تسعيرتي DZ:\nhttps://tasairati-dz.vercel.app/`;
+      document.getElementById('promo-wa-share').href = `https://wa.me/?text=${encodeURIComponent(activePromoShareText)}`;
+      document.getElementById('promo-card-modal').classList.remove('hidden');
+    }
+
+    function copyPromoCardText() {
+      copyTextToClipboard(activePromoShareText, '✅ تم نسخ نص الإعلان الترويجي!');
+    }
+
+    function syncOfflineInventoryCache() {
+      if (currentProfile && currentProfile.role === 'merchant' && merchantInventory.length > 0) {
+        localStorage.setItem(`tasairati_offline_inv_${currentProfile.id}`, JSON.stringify(merchantInventory));
+      }
+    }
+
+    function loadOfflineInventoryFallback() {
+      if (currentProfile && currentProfile.role === 'merchant' && merchantInventory.length === 0) {
+        const cached = localStorage.getItem(`tasairati_offline_inv_${currentProfile.id}`);
+        if (cached) {
+          try { merchantInventory = JSON.parse(cached); } catch (e) {}
+        }
+      }
+    }
+
+    window.addEventListener('offline', () => showToast('📡 انقطع الإنترنت — تم تفعيل وضع العمل المحلي للمخزون', true));
+    window.addEventListener('online', () => {
+      showToast('🌐 عاد الاتصال بالإنترنت — جاري المزامنة...');
+      if (typeof loadAllData === 'function') loadAllData();
+    });
 
     // --- إدارة كود ربط اللوجيسيال وإعدادات التوصيل والفوترة ---
     function getMerchantPosApiKey() {
@@ -626,7 +648,7 @@
         stopdesk_fee: 350,
         auto_respond_enabled: true,
         wilaya_fees: {},
-        invoice_type: 'bon', // 'bon' | 'facture'
+        invoice_type: 'bon',
         rc_number: '',
         nif_number: '',
         ai_number: '',
@@ -938,6 +960,7 @@
             const cachedProf = JSON.parse(cachedRaw);
             if (cachedProf && cachedProf.id) {
               applyProfileToUI(cachedProf, true);
+              loadOfflineInventoryFallback();
             }
           } catch (e) {}
         }
@@ -1122,7 +1145,6 @@
         .subscribe();
     }
 
-    // --- محرك المطابقة الذكية والرد الآلي الفوري من اللوجيسيال ---
     function matchInventoryItem(reqItem, merchantInvList) {
       const rawName = (reqItem.name || '').trim();
       const normReq = normalizeArabicText(rawName);
@@ -1382,7 +1404,12 @@
 
         if (currentProfile.role === 'merchant') {
           const { data: invData } = await sb.from('merchant_inventory').select('*').eq('merchant_id', currentProfile.id);
-          merchantInventory = invData || [];
+          if (invData) {
+            merchantInventory = invData;
+            syncOfflineInventoryCache();
+          } else {
+            loadOfflineInventoryFallback();
+          }
         } else {
           const localMerchantIds = allMerchants.filter(m => m.wilaya === currentProfile.wilaya).map(m => m.id);
           if (localMerchantIds.length > 0) {
@@ -1437,6 +1464,7 @@
           });
         }
       } catch (err) {
+        loadOfflineInventoryFallback();
         console.error(err);
       }
       renderCurrentTab();
@@ -1486,9 +1514,6 @@
       }
     }
 
-    // =========================================================================
-    // المرحلة 2: لوحة المبيعات والأرباح اليومية للتاجر + الفواتير والطباعة
-    // =========================================================================
     function computeOrderFinancials(req, offer) {
       const items = (offer && offer.priced_items && offer.priced_items.length > 0) ? offer.priced_items : (req.items || []);
       const deliveryFee = Number(offer?.delivery_fee || 0);
@@ -1628,7 +1653,6 @@
           status: 'accepted'
         });
 
-        // خصم الكمية من المخزون إذا كانت السلعة مسجلة ولها كمية
         if (selectedInvId) {
           const invItem = merchantInventory.find(i => String(i.id) === String(selectedInvId));
           if (invItem && Number(invItem.stock_qty) > 0) {
@@ -1658,10 +1682,9 @@
       yesterdayObj.setDate(yesterdayObj.getDate() - 1);
       const yesterdayKey = getLocalDateKey(yesterdayObj.toISOString());
 
-      // تجميع كل طلبات التاجر المؤكدة (المسلّمة + قيد التوصيل)
       const dayDelivered = merchantDeliveredRequests.filter(r => getLocalDateKey(r.created_at) === selectedProfitDate);
       const yesterdayDelivered = merchantDeliveredRequests.filter(r => getLocalDateKey(r.created_at) === yesterdayKey);
-      const inTransitOrders = historyRequests; // accepted & not yet delivered
+      const inTransitOrders = historyRequests;
 
       let confirmedRevenue = 0;
       let confirmedCost = 0;
@@ -1699,7 +1722,6 @@
         }
       }
 
-      // حساب مداخيل أمس للمقارنة
       let yesterdayRevenue = 0;
       for (const req of yesterdayDelivered) {
         const offer = (req.quote_offers || []).find(o => o.merchant_id === currentProfile.id && o.status === 'accepted');
@@ -1714,7 +1736,6 @@
           : `<span class="bg-red-100 text-red-700 text-[10px] font-extrabold px-2 py-0.5 rounded-full">▼ ${pct}% مقارنة بأمس</span>`;
       }
 
-      // مبيعات قيد التوصيل
       let transitRevenue = 0;
       let transitProfit = 0;
       for (const req of inTransitOrders) {
@@ -1745,7 +1766,6 @@
             </div>
           </div>
 
-          <!-- بطاقة إجمالي المداخيل المؤكدة (ظاهرة دائماً) -->
           <div class="bg-white rounded-2xl p-4 shadow-sm border border-gray-100 space-y-3">
             <div class="flex justify-between items-center">
               <span class="text-xs font-bold text-gray-500">إجمالي مبيعات السلع المحصّلة (${dayDelivered.length} عملية):</span>
@@ -1774,7 +1794,6 @@
             </button>
           </div>
 
-          <!-- قسم صافي الربح ورأس المال (محمي برمز PIN إذا فعّله التاجر) -->
           ${isLocked ? `
             <div class="bg-amber-50 border-2 border-amber-200 rounded-2xl p-4 text-center space-y-2.5">
               <div class="text-2xl">🔒</div>
@@ -1799,7 +1818,6 @@
               </div>
             </div>
 
-            <!-- مبيعات قيد التوصيل -->
             <div class="bg-amber-50/70 rounded-2xl p-3.5 border border-amber-200 flex justify-between items-center">
               <div>
                 <div class="text-xs font-extrabold text-amber-900">🚚 مبيعات قيد التوصيل (${inTransitOrders.length} طلبات)</div>
@@ -1811,7 +1829,6 @@
               </div>
             </div>
 
-            <!-- أكثر 3 سلع ربحاً اليوم -->
             ${topProducts.length > 0 ? `
               <div class="bg-white rounded-2xl p-4 shadow-sm border border-gray-100 space-y-2">
                 <h3 class="font-extrabold text-xs text-gray-800">🏆 أكثر السلع تحقيقاً للربح في هذا اليوم:</h3>
@@ -1828,7 +1845,6 @@
               </div>
             ` : ''}
 
-            <!-- إعداد رمز PIN لحماية الأرباح -->
             <div class="bg-white rounded-2xl p-3.5 shadow-sm border border-gray-100 space-y-2">
               <div class="text-xs font-extrabold text-gray-800">🔐 حماية الأرباح برمز سري (PIN) عند ترك الهاتف للعامل:</div>
               <div class="flex gap-2">
@@ -1838,7 +1854,6 @@
             </div>
           `}
 
-          <!-- سجل فواتير ومبيعات اليوم -->
           <div class="space-y-2.5">
             <div class="flex justify-between items-center px-1">
               <h3 class="font-extrabold text-sm text-gray-800">🧾 فواتير وعمليات البيع (${dayDelivered.length}):</h3>
@@ -1878,9 +1893,6 @@
       window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank');
     }
 
-    // =========================================================================
-    // نظام الفواتير والوصولات (PDF / طابعة حرارية 80mm / QR Code)
-    // =========================================================================
     function openInvoiceModalForOrder(reqId) {
       let req = null;
       let offer = null;
@@ -1907,16 +1919,7 @@
       const dateFormatted = `${dateObj.getFullYear()}-${String(dateObj.getMonth() + 1).padStart(2, '0')}-${String(dateObj.getDate()).padStart(2, '0')} ${dateObj.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
       const invNumber = `TSZ-${dateObj.getFullYear()}${String(dateObj.getMonth() + 1).padStart(2, '0')}-${shortId}`;
 
-      activeInvoiceData = {
-        req,
-        offer,
-        merchant,
-        customer,
-        fin,
-        invNumber,
-        dateFormatted
-      };
-
+      activeInvoiceData = { req, offer, merchant, customer, fin, invNumber, dateFormatted };
       renderInvoiceModalContent();
       document.getElementById('invoice-modal').classList.remove('hidden');
     }
@@ -1932,7 +1935,7 @@
 
     function renderInvoiceModalContent() {
       if (!activeInvoiceData) return;
-      const { req, merchant, customer, fin, invNumber, dateFormatted } = activeInvoiceData;
+      const { merchant, customer, fin, invNumber, dateFormatted } = activeInvoiceData;
       const merSettings = getDeliverySettingsForMerchant(merchant);
       const isFacture = merSettings.invoice_type === 'facture';
       const docTitle = isFacture ? 'فاتورة رسمية (FACTURE)' : 'وصل شراء واستلام (BON D\'ACHAT)';
@@ -2057,7 +2060,6 @@
       document.getElementById('invoice-modal').classList.add('hidden');
     }
 
-    // --- لوحة اللوجيسيال، الاستيراد CSV، وحاسبة التوصيل لـ 58 ولاية ---
     function switchInventorySubTab(sub) {
       inventorySubTab = sub;
       renderCurrentTab();
@@ -2078,7 +2080,7 @@
         <div class="space-y-4">
           <div class="bg-gradient-to-r from-emerald-600 to-teal-700 rounded-2xl p-4 text-white shadow-md">
             <h2 class="font-extrabold text-base flex items-center gap-2"><span>📦</span> لوجيسيال المحل والرد الآلي</h2>
-            <p class="text-xs text-emerald-100 mt-1">اربط مخزونك أو استورد قائمة الأسعار ليقوم التطبيق بالرد الآلي على طلبات الزبائن فور نشرها!</p>
+            <p class="text-xs text-emerald-100 mt-1">اربط مخزونك أو امسح الباركود بالكاميرا ليقوم التطبيق بالرد الآلي الفوري على الزبائن!</p>
           </div>
 
           <div class="grid grid-cols-3 bg-white p-1.5 rounded-2xl border border-gray-100 shadow-sm gap-1">
@@ -2213,8 +2215,11 @@
               </div>
               <div class="grid grid-cols-2 gap-2">
                 <div>
-                  <label class="block text-xs font-bold text-gray-700 mb-1">الباركود (اختياري)</label>
-                  <input id="inv-item-barcode" type="text" placeholder="613000..." class="w-full px-3 py-2 rounded-xl border border-gray-200 text-xs outline-none">
+                  <label class="block text-xs font-bold text-gray-700 mb-1">الباركود (كاميرا أو يدوي)</label>
+                  <div class="flex gap-1">
+                    <input id="inv-item-barcode" type="text" placeholder="613000..." class="w-full px-2.5 py-2 rounded-xl border border-gray-200 text-xs outline-none">
+                    <button type="button" onclick="openBarcodeScanner('inventory')" class="bg-gray-900 text-white px-2.5 rounded-xl text-xs font-bold shrink-0" title="مسح بالكاميرا">📷</button>
+                  </div>
                 </div>
                 <div>
                   <label class="block text-xs font-bold text-gray-700 mb-1">الكمية المتوفرة</label>
@@ -2240,7 +2245,7 @@
                         <h4 class="font-extrabold text-sm text-gray-900">${escapeHTML(i.item_name)}</h4>
                         <div class="flex flex-wrap gap-2 text-[11px] text-gray-400 mt-0.5">
                           ${i.barcode ? `<span>📊 باركود: ${escapeHTML(i.barcode)}</span>` : ''}
-                          ${i.stock_qty !== undefined && i.stock_qty !== null ? `<span>📦 الكمية: ${Number(i.stock_qty)}</span>` : ''}
+                          ${i.stock_qty !== undefined && i.stock_qty !== null ? `<span>📦 الكمية: ${Number(i.stock_qty)} ${Number(i.stock_qty) > 0 && Number(i.stock_qty) <= 5 ? '<span class="bg-red-100 text-red-700 px-1.5 py-0.5 rounded font-extrabold">⚠️ قرب النفاد</span>' : ''}</span>` : ''}
                           ${Number(i.cost_price) > 0 ? `<span class="text-amber-600 font-bold">🔒 التكلفة: ${Number(i.cost_price).toLocaleString()} دج</span>` : ''}
                         </div>
                       </div>
@@ -2675,7 +2680,10 @@
                           <div class="text-[11px] font-bold text-orange-600 mt-0.5">مدة العرض: ${d.duration_hours || 24} ساعة • ${formatTimeAgo(d.created_at)}</div>
                         </div>
                       </div>
-                      <button onclick="deleteFlashDeal('${d.id}')" class="bg-red-50 text-red-600 px-3 py-1.5 rounded-xl text-xs font-bold shrink-0">حذف</button>
+                      <div class="flex flex-col gap-1 shrink-0">
+                        <button onclick="openPromoCardGenerator('${d.id}')" class="bg-orange-50 text-orange-700 border border-orange-200 px-2.5 py-1 rounded-xl text-[11px] font-bold">🎨 بطاقة إعلان</button>
+                        <button onclick="deleteFlashDeal('${d.id}')" class="bg-red-50 text-red-600 px-2.5 py-1 rounded-xl text-[11px] font-bold">حذف</button>
+                      </div>
                     </div>
                     <div class="bg-gray-50 p-2.5 rounded-xl border border-gray-100 text-xs space-y-1">
                       <div class="font-bold text-gray-700">الأسعار المحفوظة والمعروضة للزبائن:</div>
@@ -3024,7 +3032,6 @@
       }
     }
 
-    // --- واجهة الزبون: المجالات الشاملة + البحث الذكي + الإكمال التلقائي ---
     function getFilteredCategoryEntries() {
       const entries = Object.entries(CATEGORIES);
       const q = normalizeArabicText(categorySearchQuery);
@@ -3686,16 +3693,11 @@
     e.preventDefault();
     deferredPrompt = e;
     const installBtn = document.getElementById('install-btn');
-    if (installBtn) {
-      installBtn.style.display = 'block';
-    }
-    
+    if (installBtn) installBtn.style.display = 'block';
     installBtn.addEventListener('click', () => {
       installBtn.style.display = 'none';
       deferredPrompt.prompt();
-      deferredPrompt.userChoice.then((choiceResult) => {
-        deferredPrompt = null;
-      });
+      deferredPrompt.userChoice.then(() => { deferredPrompt = null; });
     });
   });
 </script>
