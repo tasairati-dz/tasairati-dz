@@ -53,7 +53,7 @@
     const SUPABASE_ANON_KEY = 'sb_publishable_4Q7NEBUeW7EXn00rO68X6g_5bpaeOLW';
   </script>
 
-  <!-- نافذة ماسح الباركود بالكاميرا (المرحلة 3) -->
+  <!-- نافذة ماسح الباركود بالكاميرا -->
   <div id="barcode-scanner-modal" class="fixed inset-0 bg-black/80 z-50 hidden flex items-center justify-center p-4">
     <div class="bg-white rounded-2xl w-full max-w-sm p-4 space-y-3 shadow-2xl relative">
       <div class="flex justify-between items-center border-b pb-2">
@@ -65,7 +65,7 @@
     </div>
   </div>
 
-  <!-- نافذة بطاقة العرض الترويجية الجاهزة للمشاركة (المرحلة 3) -->
+  <!-- نافذة بطاقة العرض الترويجية الجاهزة للمشاركة -->
   <div id="promo-card-modal" class="fixed inset-0 bg-black/60 z-50 hidden flex items-center justify-center p-4">
     <div class="bg-white rounded-2xl w-full max-w-sm p-4 space-y-3 shadow-2xl relative">
       <button onclick="document.getElementById('promo-card-modal').classList.add('hidden')" class="absolute top-3 left-3 text-gray-400 font-bold text-lg">✕</button>
@@ -290,6 +290,15 @@
         دخول إلى التطبيق
       </button>
     </form>
+
+    <div class="mt-5 pt-4 border-t border-gray-100 space-y-2 text-center">
+      <button id="install-btn" style="display:none;" class="w-full bg-blue-600 hover:bg-blue-700 text-white py-2.5 px-4 rounded-xl text-xs font-extrabold shadow">
+        📲 تثبيت تطبيق تسعيرتي DZ على هاتفك
+      </button>
+      <a href="/download.html" class="block w-full bg-emerald-50 text-emerald-700 border border-emerald-200 py-2.5 px-4 rounded-xl text-xs font-bold">
+        📥 صفحة تحميل وتثبيت التطبيق
+      </a>
+    </div>
   </div>
 
   <!-- التطبيق الرئيسي -->
@@ -383,16 +392,24 @@
     let dealTiers = [{ label: '1 وحدة', price: '' }];
     let activeDealForModal = null;
 
-    // متغيرات المرحلة الثانية (الأرباح والفواتير)
+    // متغيرات الأرباح والفواتير
     let selectedProfitDate = new Date().toISOString().split('T')[0];
     let profitUnlocked = false;
     let activeInvoiceData = null;
     let invoicePrintFormat = 'a4';
 
-    // متغيرات المرحلة الثالثة (الباركود + Flash Promo + Offline)
+    // متغيرات الباركود + Flash Promo + الاقتراح الذكي
     let html5QrScanner = null;
     let activeBarcodeTarget = 'inventory';
     let activePromoShareText = '';
+    let autocompleteDebounceTimer = null;
+
+    // متغيرات السوق اليومي (daily_market_ads)
+    let dailyMarketAds = [];
+    let marketWilayaFilter = 'my_wilaya';
+    let marketSellerFilter = 'all';
+    let marketSearchQuery = '';
+    let marketAdImageData = null;
 
     function escapeHTML(str) {
       if (str === null || str === undefined) return '';
@@ -489,10 +506,12 @@
       });
     }
 
-    // --- دوال المرحلة 3: ماسح الباركود، بطاقة الإعلان، وضع Offline ---
+    // --- دوال ماسح الباركود، بطاقة الإعلان، وضع Offline ---
     function openBarcodeScanner(targetMode) {
       activeBarcodeTarget = targetMode;
       const modal = document.getElementById('barcode-scanner-modal');
+      const readerEl = document.getElementById('qr-reader');
+      if (readerEl) readerEl.innerHTML = '';
       modal.classList.remove('hidden');
 
       if (typeof Html5Qrcode === 'undefined') {
@@ -522,6 +541,8 @@
         html5QrScanner.stop().then(() => html5QrScanner.clear()).catch(() => {});
         html5QrScanner = null;
       }
+      const readerEl = document.getElementById('qr-reader');
+      if (readerEl) readerEl.innerHTML = '';
     }
 
     function handleScannedBarcodeResult(code) {
@@ -927,6 +948,12 @@
       document.getElementById('auth-view').classList.add('hidden');
       document.getElementById('app-view').classList.remove('hidden');
 
+      if (window.OneSignalDeferred && profile?.id) {
+        window.OneSignalDeferred.push(async function(OneSignal) {
+          try { await OneSignal.login(String(profile.id)); } catch (e) {}
+        });
+      }
+
       const isMerchant = currentProfile.role === 'merchant';
       document.getElementById('role-badge').textContent = isMerchant ? 'حساب تاجر' : 'حساب زبون';
       document.getElementById('header-subtitle').textContent = isMerchant
@@ -1032,6 +1059,16 @@
         dealImageUrl = urlOrData;
         const previewEl = document.getElementById('deal-image-preview');
         if (previewEl) previewEl.innerHTML = `<img src="${urlOrData}" class="w-20 h-20 rounded-xl object-cover border">`;
+      });
+    }
+
+    function handleMarketAdImageUpload(e) {
+      const file = e.target.files[0];
+      if (!file) return;
+      processAndUploadImage(file, 550, 0.7, 'market', (urlOrData) => {
+        marketAdImageData = urlOrData;
+        const previewEl = document.getElementById('market-ad-image-preview');
+        if (previewEl) previewEl.innerHTML = `<img src="${urlOrData}" class="w-full h-full object-cover">`;
       });
     }
 
@@ -1141,6 +1178,12 @@
             showToast("🎉 مبروك! تم قبول أحد عروضك من طرف الزبون!");
             loadAllData();
           }
+        })
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'daily_market_ads' }, payload => {
+          if (payload.eventType === 'INSERT' && payload.new && payload.new.wilaya === currentProfile.wilaya && payload.new.user_id !== currentProfile.id) {
+            triggerBackgroundNotification("🛍️ إعلان جديد في السوق اليومي!", `${payload.new.title} — ${Number(payload.new.price || 0).toLocaleString()} دج`);
+          }
+          loadAllData();
         })
         .subscribe();
     }
@@ -1339,40 +1382,46 @@
       const nav = document.getElementById('bottom-nav');
       if (isMerchant) {
         nav.innerHTML = `
-          <button onclick="switchTab('home')" id="nav-home" class="flex flex-col items-center text-emerald-600 font-bold text-[10px]">
-            <span class="text-lg mb-0.5">📥</span><span>الطلبات</span>
+          <button onclick="switchTab('home')" id="nav-home" class="flex-1 min-w-0 flex flex-col items-center text-emerald-600 font-bold text-[9px] leading-tight">
+            <span class="text-base mb-0.5">📥</span><span class="truncate">الطلبات</span>
           </button>
-          <button onclick="switchTab('inventory')" id="nav-inventory" class="flex flex-col items-center text-gray-400 font-bold text-[10px]">
-            <span class="text-lg mb-0.5">📦</span><span>اللوجيسيال</span>
+          <button onclick="switchTab('inventory')" id="nav-inventory" class="flex-1 min-w-0 flex flex-col items-center text-gray-400 font-bold text-[9px] leading-tight">
+            <span class="text-base mb-0.5">📦</span><span class="truncate">اللوجيسيال</span>
           </button>
-          <button onclick="switchTab('profits')" id="nav-profits" class="flex flex-col items-center text-gray-400 font-bold text-[10px]">
-            <span class="text-lg mb-0.5">💰</span><span>الأرباح</span>
+          <button onclick="switchTab('profits')" id="nav-profits" class="flex-1 min-w-0 flex flex-col items-center text-gray-400 font-bold text-[9px] leading-tight">
+            <span class="text-base mb-0.5">💰</span><span class="truncate">الأرباح</span>
           </button>
-          <button onclick="switchTab('deals')" id="nav-deals" class="flex flex-col items-center text-gray-400 font-bold text-[10px]">
-            <span class="text-lg mb-0.5">⚡</span><span>عروضي</span>
+          <button onclick="switchTab('deals')" id="nav-deals" class="flex-1 min-w-0 flex flex-col items-center text-gray-400 font-bold text-[9px] leading-tight">
+            <span class="text-base mb-0.5">⚡</span><span class="truncate">عروضي</span>
           </button>
-          <button onclick="switchTab('history')" id="nav-history" class="flex flex-col items-center text-gray-400 font-bold text-[10px]">
-            <span class="text-lg mb-0.5">📜</span><span>السجل</span>
+          <button onclick="switchTab('market')" id="nav-market" class="flex-1 min-w-0 flex flex-col items-center text-gray-400 font-bold text-[9px] leading-tight">
+            <span class="text-base mb-0.5">🛍️</span><span class="truncate">السوق</span>
           </button>
-          <button onclick="switchTab('profile')" id="nav-profile" class="flex flex-col items-center text-gray-400 font-bold text-[10px]">
-            <span class="text-lg mb-0.5">🏪</span><span>حسابي</span>
+          <button onclick="switchTab('history')" id="nav-history" class="flex-1 min-w-0 flex flex-col items-center text-gray-400 font-bold text-[9px] leading-tight">
+            <span class="text-base mb-0.5">📜</span><span class="truncate">السجل</span>
+          </button>
+          <button onclick="switchTab('profile')" id="nav-profile" class="flex-1 min-w-0 flex flex-col items-center text-gray-400 font-bold text-[9px] leading-tight">
+            <span class="text-base mb-0.5">🏪</span><span class="truncate">حسابي</span>
           </button>`;
       } else {
         nav.innerHTML = `
-          <button onclick="switchTab('home')" id="nav-home" class="flex flex-col items-center text-emerald-600 font-bold text-xs">
-            <span class="text-xl mb-0.5">➕</span><span>طلب جديد</span>
+          <button onclick="switchTab('home')" id="nav-home" class="flex-1 min-w-0 flex flex-col items-center text-emerald-600 font-bold text-[10px] leading-tight">
+            <span class="text-lg mb-0.5">➕</span><span class="truncate">طلب جديد</span>
           </button>
-          <button onclick="switchTab('deals')" id="nav-deals" class="flex flex-col items-center text-gray-400 font-bold text-xs">
-            <span class="text-xl mb-0.5">⚡</span><span>العروض السريعة</span>
+          <button onclick="switchTab('deals')" id="nav-deals" class="flex-1 min-w-0 flex flex-col items-center text-gray-400 font-bold text-[10px] leading-tight">
+            <span class="text-lg mb-0.5">⚡</span><span class="truncate">العروض</span>
           </button>
-          <button onclick="switchTab('merchants')" id="nav-merchants" class="flex flex-col items-center text-gray-400 font-bold text-xs">
-            <span class="text-xl mb-0.5">🔍</span><span>بحث المحلات</span>
+          <button onclick="switchTab('market')" id="nav-market" class="flex-1 min-w-0 flex flex-col items-center text-gray-400 font-bold text-[10px] leading-tight">
+            <span class="text-lg mb-0.5">🛍️</span><span class="truncate">السوق اليومي</span>
           </button>
-          <button onclick="switchTab('orders')" id="nav-orders" class="flex flex-col items-center text-gray-400 font-bold text-xs">
-            <span class="text-xl mb-0.5">📋</span><span>طلباتي</span>
+          <button onclick="switchTab('merchants')" id="nav-merchants" class="flex-1 min-w-0 flex flex-col items-center text-gray-400 font-bold text-[10px] leading-tight">
+            <span class="text-lg mb-0.5">🔍</span><span class="truncate">المحلات</span>
           </button>
-          <button onclick="switchTab('profile')" id="nav-profile" class="flex flex-col items-center text-gray-400 font-bold text-xs">
-            <span class="text-xl mb-0.5">👤</span><span>حسابي</span>
+          <button onclick="switchTab('orders')" id="nav-orders" class="flex-1 min-w-0 flex flex-col items-center text-gray-400 font-bold text-[10px] leading-tight">
+            <span class="text-lg mb-0.5">📋</span><span class="truncate">طلباتي</span>
+          </button>
+          <button onclick="switchTab('profile')" id="nav-profile" class="flex-1 min-w-0 flex flex-col items-center text-gray-400 font-bold text-[10px] leading-tight">
+            <span class="text-lg mb-0.5">👤</span><span class="truncate">حسابي</span>
           </button>`;
       }
     }
@@ -1380,10 +1429,10 @@
     function switchTab(tab) {
       currentTab = tab;
       const isMer = currentProfile.role === 'merchant';
-      const tabsList = isMer ? ['home', 'inventory', 'profits', 'deals', 'history', 'profile'] : ['home', 'deals', 'merchants', 'orders', 'profile'];
+      const tabsList = isMer ? ['home', 'inventory', 'profits', 'deals', 'market', 'history', 'profile'] : ['home', 'deals', 'market', 'merchants', 'orders', 'profile'];
       tabsList.forEach(t => {
         const el = document.getElementById(`nav-${t}`);
-        if (el) el.className = `flex flex-col items-center font-bold ${isMer ? 'text-[10px]' : 'text-xs'} ${t === tab ? 'text-emerald-600' : 'text-gray-400'}`;
+        if (el) el.className = `flex-1 min-w-0 flex flex-col items-center font-bold ${isMer ? 'text-[9px]' : 'text-[10px]'} leading-tight ${t === tab ? 'text-emerald-600' : 'text-gray-400'}`;
       });
       renderCurrentTab();
     }
@@ -1398,6 +1447,13 @@
           .gt('expires_at', nowIso)
           .order('created_at', { ascending: false });
         flashDeals = dealsData || [];
+
+        const { data: marketData } = await sb
+          .from('daily_market_ads')
+          .select('*')
+          .eq('is_sold', false)
+          .order('created_at', { ascending: false });
+        dailyMarketAds = marketData || [];
 
         const { data: merchData } = await sb.from('profiles').select('*').eq('role', 'merchant');
         allMerchants = merchData || [];
@@ -1482,6 +1538,13 @@
         if (editCat && currentProfile.category) editCat.value = currentProfile.category;
         return;
       }
+      if (currentTab === 'market') {
+        main.innerHTML = renderDailyMarketView();
+        populateWilayas();
+        const mWilaya = document.getElementById('market-ad-wilaya');
+        if (mWilaya) mWilaya.value = currentProfile.wilaya;
+        return;
+      }
       if (currentTab === 'profits' && currentProfile.role === 'merchant') {
         main.innerHTML = renderMerchantProfitsView();
         return;
@@ -1513,7 +1576,215 @@
         main.innerHTML = renderMerchantDashboard();
       }
     }
+// === نهاية النصف الأول — الصق النصف الثاني مباشرة أسفل هذا السطر ===
+    // --- قسم السوق اليومي (إعلانات الأفراد والمحلات حسب الولاية) ---
+    function renderDailyMarketView() {
+      const isMerchant = currentProfile.role === 'merchant';
+      const filteredAds = dailyMarketAds.filter(ad => {
+        const matchesWilaya = marketWilayaFilter === 'all' || ad.wilaya === currentProfile.wilaya;
+        const matchesSeller = marketSellerFilter === 'all' || ad.seller_type === marketSellerFilter;
+        const q = normalizeArabicText(marketSearchQuery);
+        const matchesSearch = !q || normalizeArabicText(`${ad.title} ${ad.seller_name} ${ad.condition || ''}`).includes(q);
+        return matchesWilaya && matchesSeller && matchesSearch;
+      });
 
+      return `
+        <div class="space-y-4">
+          <div class="bg-gradient-to-r from-emerald-600 to-teal-700 rounded-2xl p-4 text-white shadow-md">
+            <h2 class="font-extrabold text-base flex items-center gap-2"><span>🛍️</span> السوق اليومي في ولايتك</h2>
+            <p class="text-xs text-emerald-100 mt-1">مساحة بيع وشراء مباشرة بين الأفراد والمحلات التجارية دون وسطاء</p>
+          </div>
+
+          <!-- نموذج نشر إعلان جديد في السوق اليومي -->
+          <div class="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 space-y-3">
+            <div class="flex items-center justify-between">
+              <h3 class="font-extrabold text-sm text-gray-800">➕ انشر غرضاً للبيع في السوق اليومي</h3>
+              <span class="text-[10px] font-extrabold px-2 py-0.5 rounded-full ${isMerchant ? 'bg-amber-100 text-amber-800' : 'bg-blue-100 text-blue-800'}">
+                ${isMerchant ? '🏪 حساب محل تجاري' : '👤 حساب فرد'}
+              </span>
+            </div>
+
+            <input id="market-ad-title" type="text" placeholder="ماذا تريد أن تبيع؟ (مثال: هاتف مستعمل، ثلاجة، قطعة غيار...)" class="w-full px-3.5 py-2.5 rounded-xl border border-gray-200 text-xs outline-none focus:border-emerald-500">
+
+            <div class="grid grid-cols-2 gap-2">
+              <div>
+                <label class="block text-[11px] font-bold text-gray-700 mb-1">السعر المطلوب (دج)</label>
+                <input id="market-ad-price" type="number" placeholder="مثال: 15000" class="w-full px-3 py-2 rounded-xl border border-gray-200 text-xs font-extrabold text-emerald-700 outline-none">
+              </div>
+              <div>
+                <label class="block text-[11px] font-bold text-gray-700 mb-1">حالة الغرض</label>
+                <select id="market-ad-condition" class="w-full px-3 py-2 rounded-xl border border-gray-200 text-xs bg-white outline-none">
+                  <option value="جديد">✨ جديد</option>
+                  <option value="مستعمل نظيف">👌 مستعمل نظيف</option>
+                  <option value="مستعمل">🔄 مستعمل</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="grid grid-cols-2 gap-2">
+              <div>
+                <label class="block text-[11px] font-bold text-gray-700 mb-1">الولاية</label>
+                <select id="market-ad-wilaya" class="wilaya-select w-full px-3 py-2 rounded-xl border border-gray-200 text-xs bg-white outline-none"></select>
+              </div>
+              <div>
+                <label class="block text-[11px] font-bold text-gray-700 mb-1">رقم الهاتف للتواصل</label>
+                <input id="market-ad-phone" type="tel" dir="ltr" value="${escapeHTML(currentProfile.phone || '')}" placeholder="0550..." class="w-full px-3 py-2 rounded-xl border border-gray-200 text-xs text-right outline-none">
+              </div>
+            </div>
+
+            <div class="flex items-center gap-3 bg-gray-50 p-2.5 rounded-xl border border-gray-200">
+              <div id="market-ad-image-preview" class="w-16 h-16 bg-gray-100 rounded-xl flex items-center justify-center text-xs text-gray-400 overflow-hidden shrink-0">
+                ${marketAdImageData ? `<img src="${escapeHTML(marketAdImageData)}" class="w-full h-full object-cover">` : '📷 صورة'}
+              </div>
+              <div class="flex-1">
+                <label class="block text-xs font-bold text-gray-700 mb-1">إرفاق صورة للغرض (تُضغط تلقائياً)</label>
+                <input type="file" accept="image/*" onchange="handleMarketAdImageUpload(event)" class="text-xs text-gray-500 file:py-1.5 file:px-2.5 file:rounded-lg file:border-0 file:text-xs file:font-bold file:bg-emerald-50 file:text-emerald-700">
+              </div>
+            </div>
+
+            <button id="publish-market-ad-btn" onclick="publishDailyMarketAd()" class="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold py-3 rounded-xl text-xs shadow-sm">
+              نشر الإعلان في السوق اليومي 🚀
+            </button>
+          </div>
+
+          <!-- شريط البحث والفلترة -->
+          <div class="bg-white p-3 rounded-2xl shadow-sm border border-gray-100 space-y-2.5">
+            <input type="text" value="${escapeHTML(marketSearchQuery)}" oninput="marketSearchQuery=this.value; renderCurrentTab(); populateWilayas();" placeholder="🔍 ابحث في السوق اليومي..." class="w-full px-3.5 py-2 rounded-xl border border-gray-200 bg-gray-50 focus:bg-white text-xs outline-none">
+            <div class="grid grid-cols-2 gap-2">
+              <select onchange="marketWilayaFilter=this.value; renderCurrentTab(); populateWilayas();" class="px-2.5 py-2 rounded-xl border border-gray-200 text-xs font-bold bg-white outline-none">
+                <option value="my_wilaya" ${marketWilayaFilter === 'my_wilaya' ? 'selected' : ''}>📍 ولايتي (${escapeHTML(currentProfile.wilaya)})</option>
+                <option value="all" ${marketWilayaFilter === 'all' ? 'selected' : ''}>🌍 كل الولايات (58)</option>
+              </select>
+              <select onchange="marketSellerFilter=this.value; renderCurrentTab(); populateWilayas();" class="px-2.5 py-2 rounded-xl border border-gray-200 text-xs font-bold bg-white outline-none">
+                <option value="all" ${marketSellerFilter === 'all' ? 'selected' : ''}>الكل (أفراد ومحلات)</option>
+                <option value="individual" ${marketSellerFilter === 'individual' ? 'selected' : ''}>👤 عروض الأفراد فقط</option>
+                <option value="merchant" ${marketSellerFilter === 'merchant' ? 'selected' : ''}>🏪 عروض المحلات فقط</option>
+              </select>
+            </div>
+          </div>
+
+          <!-- قائمة إعلانات السوق اليومي -->
+          <div class="space-y-3">
+            <div class="flex justify-between items-center px-1">
+              <h3 class="font-extrabold text-sm text-gray-800">🛒 الإعلانات المتوفرة (${filteredAds.length}):</h3>
+            </div>
+
+            ${filteredAds.length === 0 ? `
+              <div class="text-center py-10 bg-white rounded-2xl border border-gray-100 p-6">
+                <div class="text-4xl mb-2">🛍️</div>
+                <p class="font-bold text-gray-700 text-sm">لا توجد إعلانات معروضة حالياً</p>
+                <p class="text-xs text-gray-400 mt-1">كن أول من ينشر غرضاً للبيع في ولايتك!</p>
+              </div>` :
+              filteredAds.map(ad => {
+                const isMine = ad.user_id === currentProfile.id;
+                const isMerchantAd = ad.seller_type === 'merchant';
+                const waPhone = formatDzWhatsApp(ad.phone || '');
+
+                return `
+                  <div class="bg-white rounded-2xl p-4 shadow-sm border ${isMine ? 'border-emerald-300' : 'border-gray-100'} space-y-2.5">
+                    <div class="flex justify-between items-start gap-2">
+                      <div>
+                        <div class="flex items-center gap-1.5 flex-wrap">
+                          <span class="text-[10px] font-extrabold px-2 py-0.5 rounded-full ${isMerchantAd ? 'bg-amber-100 text-amber-800' : 'bg-blue-100 text-blue-800'}">
+                            ${isMerchantAd ? '🏪 محل تجاري' : '👤 فرد'}
+                          </span>
+                          <span class="text-[10px] font-bold bg-gray-100 text-gray-700 px-2 py-0.5 rounded-full">${escapeHTML(ad.condition || 'مستعمل')}</span>
+                        </div>
+                        <h4 class="font-extrabold text-sm text-gray-900 mt-1.5">${escapeHTML(ad.title)}</h4>
+                        <p class="text-[11px] text-gray-400 mt-0.5">البائع: ${escapeHTML(ad.seller_name || 'مستخدم')} • 📍 ${escapeHTML(ad.wilaya)} • ${formatTimeAgo(ad.created_at)}</p>
+                      </div>
+                      <div class="text-left shrink-0">
+                        <div class="text-base font-extrabold text-emerald-700">${Number(ad.price || 0).toLocaleString()} دج</div>
+                      </div>
+                    </div>
+
+                    ${ad.image_data ? `<img src="${escapeHTML(ad.image_data)}" class="w-full h-44 object-cover rounded-xl border border-gray-100">` : ''}
+
+                    ${isMine ? `
+                      <div class="grid grid-cols-2 gap-2 pt-2 border-t border-gray-100">
+                        <button onclick="markMarketAdAsSold('${ad.id}')" class="bg-emerald-600 hover:bg-emerald-700 text-white py-2 rounded-xl text-xs font-extrabold shadow-sm">
+                          ✔️ تم البيع (إخفاء)
+                        </button>
+                        <button onclick="deleteDailyMarketAd('${ad.id}')" class="bg-red-50 text-red-600 py-2 rounded-xl text-xs font-bold">
+                          🗑️ حذف الإعلان
+                        </button>
+                      </div>
+                    ` : `
+                      <div class="grid grid-cols-2 gap-2 pt-2 border-t border-gray-100">
+                        <a href="tel:${escapeHTML(ad.phone || '')}" class="bg-emerald-600 text-white py-2 rounded-xl text-xs font-bold text-center">📞 اتصال بالبائع</a>
+                        <a href="https://wa.me/${waPhone}?text=${encodeURIComponent('مرحباً، بخصوص إعلانك في السوق اليومي على تطبيق تسعيرتي DZ: ' + ad.title)}" target="_blank" class="bg-[#25D366] text-white py-2 rounded-xl text-xs font-bold text-center">💬 واتساب</a>
+                      </div>
+                    `}
+                  </div>`;
+              }).join('')
+            }
+          </div>
+        </div>`;
+    }
+
+    async function publishDailyMarketAd() {
+      const title = (document.getElementById('market-ad-title')?.value || '').trim();
+      const price = Number(document.getElementById('market-ad-price')?.value || 0);
+      const condition = document.getElementById('market-ad-condition')?.value || 'مستعمل نظيف';
+      const wilaya = document.getElementById('market-ad-wilaya')?.value || currentProfile.wilaya;
+      const phone = normalizeDzPhone((document.getElementById('market-ad-phone')?.value || '').trim());
+
+      if (!title) return showToast('يرجى كتابة عنوان الغرض المعروض للبيع', true);
+      if (price <= 0) return showToast('يرجى إدخال سعر صحيح بالدينار الجزائري', true);
+      if (!isValidDzPhone(phone)) return showToast('يرجى إدخال رقم هاتف جزائري صحيح', true);
+
+      const btn = document.getElementById('publish-market-ad-btn');
+      if (btn) btn.disabled = true;
+
+      try {
+        const isMerchant = currentProfile.role === 'merchant';
+        const { error } = await sb.from('daily_market_ads').insert({
+          user_id: currentProfile.id,
+          seller_name: isMerchant ? (currentProfile.shop_name || currentProfile.full_name) : currentProfile.full_name,
+          seller_type: isMerchant ? 'merchant' : 'individual',
+          title,
+          condition,
+          price,
+          wilaya,
+          phone,
+          image_data: marketAdImageData,
+          is_sold: false
+        });
+
+        if (error) {
+          showToast('تعذر نشر الإعلان: ' + error.message, true);
+          return;
+        }
+
+        marketAdImageData = null;
+        showToast('🛍️ تم نشر إعلانك في السوق اليومي بنجاح!');
+        await loadAllData();
+      } finally {
+        if (btn) btn.disabled = false;
+      }
+    }
+
+    async function markMarketAdAsSold(adId) {
+      const { error } = await sb.from('daily_market_ads').update({ is_sold: true }).eq('id', adId);
+      if (error) {
+        showToast('خطأ في تحديث الحالة: ' + error.message, true);
+      } else {
+        showToast('✅ مبروك البيع! تم إخفاء الإعلان من السوق اليومي');
+        await loadAllData();
+      }
+    }
+
+    async function deleteDailyMarketAd(adId) {
+      const { error } = await sb.from('daily_market_ads').delete().eq('id', adId);
+      if (error) {
+        showToast('خطأ في الحذف: ' + error.message, true);
+      } else {
+        showToast('تم حذف الإعلان');
+        await loadAllData();
+      }
+    }
+
+    // --- لوحة الأرباح الصافية والبيع المباشر ---
     function computeOrderFinancials(req, offer) {
       const items = (offer && offer.priced_items && offer.priced_items.length > 0) ? offer.priced_items : (req.items || []);
       const deliveryFee = Number(offer?.delivery_fee || 0);
@@ -1635,7 +1906,7 @@
           customer_id: currentProfile.id,
           category: currentProfile.category || 'supermarket',
           wilaya: currentProfile.wilaya,
-          municipality: currentProfile.municipality || customerLabel,
+          municipality: customerLabel,
           title: `[بيع مباشر] ${itemName} (${qty})`,
           items: [pricedItem],
           delivery_type: 'pickup',
@@ -1864,12 +2135,13 @@
               dayDelivered.map(req => {
                 const offer = (req.quote_offers || []).find(o => o.merchant_id === currentProfile.id && o.status === 'accepted');
                 const fin = computeOrderFinancials(req, offer);
-                const customer = req.profiles || {};
+                const isDirect = (req.title || '').startsWith('[بيع مباشر]');
+                const customerName = isDirect ? (req.municipality || 'زبون المحل') : (req.profiles?.full_name || 'زبون');
                 return `
                   <div class="bg-white rounded-2xl p-3.5 shadow-sm border border-gray-100 flex justify-between items-center gap-2">
                     <div>
                       <div class="font-extrabold text-xs text-gray-900">${escapeHTML(req.title)}</div>
-                      <div class="text-[11px] text-gray-400 mt-0.5">${escapeHTML(customer.full_name || 'زبون')} • ${formatTimeAgo(req.created_at)}</div>
+                      <div class="text-[11px] text-gray-400 mt-0.5">${escapeHTML(customerName)} • ${formatTimeAgo(req.created_at)}</div>
                       <div class="flex items-center gap-2 mt-1">
                         <span class="text-xs font-extrabold text-gray-800">المبلغ: ${fin.grandTotal.toLocaleString()} دج</span>
                         ${!isLocked ? `<span class="text-[11px] font-extrabold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full">ربح: +${fin.netProfit.toLocaleString()} دج</span>` : ''}
@@ -1893,6 +2165,7 @@
       window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank');
     }
 
+    // --- نظام الفواتير والوصل (A4 / حرارية + QR) ---
     function openInvoiceModalForOrder(reqId) {
       let req = null;
       let offer = null;
@@ -1904,7 +2177,10 @@
         if (!req) return showToast('تعذر العثور على بيانات الطلب', true);
         offer = (req.quote_offers || []).find(o => o.merchant_id === currentProfile.id && o.status === 'accepted');
         merchant = currentProfile;
-        customer = req.profiles || { full_name: req.municipality || 'زبون المحل', phone: '' };
+        const isDirectSale = (req.title || '').startsWith('[بيع مباشر]');
+        customer = isDirectSale
+          ? { full_name: req.municipality || 'زبون المحل', phone: '' }
+          : (req.profiles || { full_name: req.municipality || 'زبون المحل', phone: '' });
       } else {
         req = myRequests.find(r => String(r.id) === String(reqId));
         if (!req) return showToast('تعذر العثور على بيانات الطلب', true);
@@ -2060,6 +2336,7 @@
       document.getElementById('invoice-modal').classList.add('hidden');
     }
 
+    // --- لوجيسيال المحل والمخزون والرد الآلي ---
     function switchInventorySubTab(sub) {
       inventorySubTab = sub;
       renderCurrentTab();
@@ -2200,8 +2477,8 @@
             <div class="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 space-y-3">
               <h3 class="font-extrabold text-sm text-gray-800">➕ إضافة مادة جديدة للمخزون والرد الآلي</h3>
               <div>
-                <label class="block text-xs font-bold text-gray-700 mb-1">اسم المادة (كما يبحث عنها الزبون)</label>
-                <input id="inv-item-name" type="text" placeholder="مثال: زيت المائدة 5ل" class="w-full px-3.5 py-2.5 rounded-xl border border-gray-200 text-xs outline-none">
+                <label class="block text-xs font-bold text-gray-700 mb-1">اسم المادة والوزن/الحجم (كما يبحث عنها الزبون)</label>
+                <input id="inv-item-name" type="text" placeholder="مثال: سكر أبيض 5كغ أو زيت المائدة 5ل" class="w-full px-3.5 py-2.5 rounded-xl border border-gray-200 text-xs outline-none">
               </div>
               <div class="grid grid-cols-2 gap-2">
                 <div>
@@ -2357,6 +2634,13 @@
       URL.revokeObjectURL(url);
     }
 
+    function splitCsvLineSafely(line, delimiter) {
+      const pattern = delimiter === ';'
+        ? /;(?=(?:(?:[^"]*"){2})*[^"]*$)/
+        : /,(?=(?:(?:[^"]*"){2})*[^"]*$)/;
+      return line.split(pattern).map(c => c.trim().replace(/^"|"$/g, '').replace(/""/g, '"'));
+    }
+
     function handlePosCsvImport(event) {
       const file = event.target.files[0];
       if (!file) return;
@@ -2375,7 +2659,7 @@
           if (lines.length < 2) throw new Error('الملف فارغ أو لا يحتوي على صفوف بيانات');
 
           const delimiter = lines[0].includes(';') ? ';' : ',';
-          const headers = lines[0].split(delimiter).map(h => h.trim().toLowerCase().replace(/"/g, ''));
+          const headers = splitCsvLineSafely(lines[0], delimiter).map(h => h.toLowerCase());
 
           const nameIdx = headers.findIndex(h => ['item_name', 'name', 'designation', 'désignation', 'produit', 'الاسم', 'اسم المادة', 'المادة', 'المنتج'].includes(h));
           const priceIdx = headers.findIndex(h => ['unit_price', 'price', 'prix', 'prix_vente', 'pv', 'السعر', 'سعر البيع'].includes(h));
@@ -2388,7 +2672,7 @@
 
           const parsedRows = [];
           for (let i = 1; i < lines.length; i++) {
-            const cols = lines[i].split(delimiter).map(c => c.trim().replace(/^"|"$/g, ''));
+            const cols = splitCsvLineSafely(lines[i], delimiter);
             const itemName = cols[colName];
             const unitPrice = parseFloat(String(cols[colPrice] || '0').replace(/[^\d.]/g, ''));
             if (!itemName || isNaN(unitPrice) || unitPrice <= 0) continue;
@@ -2435,6 +2719,7 @@
       reader.readAsText(file, 'UTF-8');
     }
 
+    // --- بحث المحلات ---
     function renderMerchantsSearchView() {
       const hasUserGPS = Boolean(currentProfile.latitude && currentProfile.longitude);
       let filtered = allMerchants.filter(m => {
@@ -2519,6 +2804,7 @@
         </div>`;
     }
 
+    // --- العروض السريعة ---
     function renderDealTiersHTML() {
       return dealTiers.map((tier, idx) => `
         <div class="flex gap-2 items-center">
@@ -2924,6 +3210,7 @@
       }
     }
 
+    // --- سجل الطلبات المؤكدة للتاجر ---
     function renderHistoryView() {
       const completedOrders = merchantDeliveredRequests.filter(r => !(r.title || '').startsWith('[بيع مباشر]')).slice(0, 15);
       return `<div class="space-y-4">
@@ -3032,6 +3319,7 @@
       }
     }
 
+    // --- طلبات الزبون والاقتراح الذكي للسلع (search_product_suggestions RPC) ---
     function getFilteredCategoryEntries() {
       const entries = Object.entries(CATEGORIES);
       const q = normalizeArabicText(categorySearchQuery);
@@ -3085,43 +3373,87 @@
     function updateItemAutocompleteSuggestions(val) {
       const box = document.getElementById('item-autocomplete-box');
       if (!box) return;
-      const q = normalizeArabicText(val);
-      if (q.length < 2 || wilayaCatalogSuggestions.length === 0) {
+
+      const cleanVal = (val || '').trim();
+      if (normalizeArabicText(cleanVal).length < 2) {
         box.classList.add('hidden');
         return;
       }
 
-      const uniqueNames = [];
-      const seen = new Set();
-      for (const item of wilayaCatalogSuggestions) {
-        const norm = normalizeArabicText(item.item_name);
-        if (norm.includes(q) && !seen.has(norm)) {
-          seen.add(norm);
-          uniqueNames.push(item);
-        }
-        if (uniqueNames.length >= 5) break;
-      }
-
-      if (uniqueNames.length === 0) {
-        box.classList.add('hidden');
-        return;
-      }
-
-      box.innerHTML = uniqueNames.map(it => `
-        <button type="button" onclick="selectAutocompleteItem('${escapeHTML(it.item_name)}')" class="w-full text-right px-3 py-2 text-xs hover:bg-emerald-50 flex justify-between items-center border-b border-gray-100 last:border-0">
-          <span class="font-bold text-gray-800">⚡ ${escapeHTML(it.item_name)}</span>
-          <span class="text-[11px] font-extrabold text-emerald-700">~ ${Number(it.unit_price).toLocaleString()} دج</span>
-        </button>
-      `).join('');
+      clearTimeout(autocompleteDebounceTimer);
+      box.innerHTML = `<div class="px-3 py-2 text-[11px] text-gray-500 text-center">⏳ جاري البحث عن الأنواع والأحجام المتوفرة...</div>`;
       box.classList.remove('hidden');
+
+      autocompleteDebounceTimer = setTimeout(async () => {
+        const activeWilaya = document.getElementById('req-wilaya')?.value || currentProfile.wilaya;
+        let suggestions = [];
+
+        try {
+          const { data, error } = await sb.rpc('search_product_suggestions', {
+            p_query: cleanVal,
+            p_wilaya: activeWilaya,
+            p_category: selectedCategory || null
+          });
+
+          if (!error && Array.isArray(data) && data.length > 0) {
+            suggestions = data.map(row => ({
+              name: row.item_name || row.suggested_name || row.name || '',
+              merchantsCount: row.merchant_count ?? row.merchants_count ?? 0,
+              minPrice: row.min_price ?? row.unit_price ?? null
+            })).filter(s => s.name);
+          }
+        } catch (e) {
+          console.warn('RPC fallback to local suggestions:', e);
+        }
+
+        if (suggestions.length === 0 && wilayaCatalogSuggestions.length > 0) {
+          const q = normalizeArabicText(cleanVal);
+          const seen = new Set();
+          for (const item of wilayaCatalogSuggestions) {
+            const norm = normalizeArabicText(item.item_name);
+            if (norm.includes(q) && !seen.has(norm)) {
+              seen.add(norm);
+              suggestions.push({
+                name: item.item_name,
+                merchantsCount: 1,
+                minPrice: item.unit_price
+              });
+            }
+            if (suggestions.length >= 8) break;
+          }
+        }
+
+        if (suggestions.length === 0) {
+          box.innerHTML = `<div class="px-3 py-2 text-[11px] text-amber-700 bg-amber-50">💡 لا يوجد تطابق مسجل؛ اكتب الحجم أو النوع يدوياً ثم اضغط "إضافة"</div>`;
+          return;
+        }
+
+        box.innerHTML = suggestions.map(it => `
+          <button type="button" onclick="selectAutocompleteItem('${escapeHTML(it.name)}')" class="w-full text-right px-3 py-2.5 text-xs hover:bg-emerald-50 flex justify-between items-center border-b border-gray-100 last:border-0 transition">
+            <div>
+              <div class="font-extrabold text-gray-800">⚡ ${escapeHTML(it.name)}</div>
+              ${it.merchantsCount > 0 ? `<div class="text-[10px] text-emerald-600 font-bold">متوفر لدى ${it.merchantsCount} تاجر في ولايتك (رد آلي فوري)</div>` : ''}
+            </div>
+            ${it.minPrice ? `<span class="text-[11px] font-extrabold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-lg shrink-0">~ ${Number(it.minPrice).toLocaleString()} دج</span>` : `<span class="text-[11px] font-bold text-emerald-600">اختيار ↵</span>`}
+          </button>
+        `).join('');
+      }, 250);
     }
 
     function selectAutocompleteItem(name) {
       const input = document.getElementById('item-name');
+      const qtyInput = document.getElementById('item-qty');
       if (input) input.value = name;
+
       const box = document.getElementById('item-autocomplete-box');
       if (box) box.classList.add('hidden');
-      addDraftItem();
+
+      if (qtyInput) {
+        qtyInput.focus();
+        showToast(`✅ تم اختيار "${name}" — حدد الكمية ثم اضغط إضافة`);
+      } else {
+        addDraftItem();
+      }
     }
 
     function renderCustomerNewRequest() {
@@ -3181,7 +3513,7 @@
             <div class="bg-gray-50 p-3 rounded-xl border border-gray-200/70">
               <div class="flex items-center justify-between mb-2">
                 <label class="block text-xs font-bold text-gray-700">أضف المواد المطلوبة (${draftItems.length}):</label>
-                <span class="text-[10px] font-bold text-emerald-700">⚡ تسعير آلي فوري</span>
+                <span class="text-[10px] font-bold text-emerald-700">⚡ اقتراح ذكي للأحجام</span>
               </div>
               <div class="flex gap-1.5 overflow-x-auto hide-scroll pb-2 mb-2">
                 ${cat.suggestions.map(s => `
@@ -3190,11 +3522,11 @@
               </div>
               <div class="relative">
                 <div class="flex gap-2">
-                  <input id="item-name" type="text" oninput="updateItemAutocompleteSuggestions(this.value)" onkeydown="if(event.key==='Enter'){event.preventDefault();addDraftItem();}" placeholder="اسم المادة أو الباركود..." class="flex-1 px-3 py-2 rounded-lg border border-gray-200 bg-white text-xs outline-none">
+                  <input id="item-name" type="text" oninput="updateItemAutocompleteSuggestions(this.value)" onkeydown="if(event.key==='Enter'){event.preventDefault();addDraftItem();}" placeholder="اكتب اسم المادة (مثل: سكر) لاختيار النوع والحجم..." class="flex-1 px-3 py-2 rounded-lg border border-gray-200 bg-white text-xs outline-none">
                   <input id="item-qty" type="text" onkeydown="if(event.key==='Enter'){event.preventDefault();addDraftItem();}" placeholder="الكمية" class="w-20 px-2.5 py-2 rounded-lg border border-gray-200 bg-white text-xs outline-none">
                   <button type="button" onclick="addDraftItem()" class="bg-emerald-600 text-white px-3.5 py-2 rounded-lg text-xs font-bold">إضافة</button>
                 </div>
-                <div id="item-autocomplete-box" class="hidden absolute left-0 right-0 top-full mt-1 bg-white rounded-xl shadow-lg border border-emerald-200 z-20 overflow-hidden"></div>
+                <div id="item-autocomplete-box" class="hidden absolute left-0 right-0 top-full mt-1 bg-white rounded-xl shadow-lg border border-emerald-200 z-20 overflow-hidden max-h-56 overflow-y-auto"></div>
               </div>
               <div id="draft-items-list" class="mt-2.5 space-y-1.5">
                 ${draftItems.map((it, idx) => `
@@ -3432,6 +3764,7 @@
       await loadAllData();
     }
 
+    // --- لوحة طلبات التاجر ---
     function renderMerchantDashboard() {
       return `<div class="space-y-4">
         <div class="bg-white p-3 rounded-2xl border border-gray-100 flex justify-between items-center">
@@ -3549,6 +3882,7 @@
       else { showToast('✅ تم إرسال تسعيرتك بنجاح!'); await loadAllData(); }
     }
 
+    // --- الملف الشخصي ---
     function toggleFiscalFields(val) {
       const box = document.getElementById('fiscal-fields-box');
       if (box) box.classList.toggle('hidden', val !== 'facture');
@@ -3632,7 +3966,8 @@
               حفظ التعديلات
             </button>
           </div>
-          <div class="pt-3 border-t border-gray-100">
+          <div class="pt-3 border-t border-gray-100 space-y-2">
+            <a href="/download.html" class="block w-full bg-blue-50 text-blue-700 font-bold py-2.5 rounded-xl text-xs text-center">📥 صفحة تحميل وتثبيت التطبيق</a>
             <button onclick="handleLogout()" class="w-full bg-red-50 text-red-600 font-bold py-2.5 rounded-xl text-xs">تسجيل الخروج</button>
           </div>
         </div>`;
@@ -3681,46 +4016,36 @@
     window.addEventListener('DOMContentLoaded', initApp);
   </script>
 
-<div style="text-align: center; margin: 20px 0;">
-  <button id="install-btn" style="display:none; background:#0d6efd; color:#fff; padding:14px 24px; border:none; border-radius:12px; font-size:16px; font-weight:bold; cursor:pointer; box-shadow: 0 4px 12px rgba(13,110,253,0.3); width:90%; max-width:400px; margin: 0 auto;">
-    📲 تثبيت تطبيق تسعيرتي DZ على هاتفك
-  </button>
-</div>
-
-<script>
-  let deferredPrompt;
-  window.addEventListener('beforeinstallprompt', (e) => {
-    e.preventDefault();
-    deferredPrompt = e;
-    const installBtn = document.getElementById('install-btn');
-    if (installBtn) installBtn.style.display = 'block';
-    installBtn.addEventListener('click', () => {
-      installBtn.style.display = 'none';
-      deferredPrompt.prompt();
-      deferredPrompt.userChoice.then(() => { deferredPrompt = null; });
+  <script>
+    let deferredPrompt;
+    window.addEventListener('beforeinstallprompt', (e) => {
+      e.preventDefault();
+      deferredPrompt = e;
+      const installBtn = document.getElementById('install-btn');
+      if (installBtn) {
+        installBtn.style.display = 'block';
+        installBtn.addEventListener('click', () => {
+          installBtn.style.display = 'none';
+          deferredPrompt.prompt();
+          deferredPrompt.userChoice.then(() => { deferredPrompt = null; });
+        });
+      }
     });
-  });
-</script>
+  </script>
 
-<div style="text-align: center; margin: 15px 0;">
-  <a href="/download.html" style="display: inline-block; background: #198754; color: #fff; padding: 12px 24px; border-radius: 10px; text-decoration: none; font-size: 15px; font-weight: bold; box-shadow: 0 4px 12px rgba(25,135,84,0.3);">
-    📥 صفحة تحميل وتثبيت التطبيق
-  </a>
-</div>
-
-<script src="https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.page.js" defer></script>
-<script>
-  window.OneSignalDeferred = window.OneSignalDeferred || [];
-  window.OneSignalDeferred.push(async function(OneSignal) {
-    await OneSignal.init({
-      appId: "598d034c-3d51-4e39-bf11-ae84a66dc028",
+  <script src="https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.page.js" defer></script>
+  <script>
+    window.OneSignalDeferred = window.OneSignalDeferred || [];
+    window.OneSignalDeferred.push(async function(OneSignal) {
+      await OneSignal.init({
+        appId: "598d034c-3d51-4e39-bf11-ae84a66dc028",
+      });
     });
-  });
-</script>
-<script>
-  if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.register('/sw.js').catch(() => {});
-  }
-</script>
+  </script>
+  <script>
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('/sw.js').catch(() => {});
+    }
+  </script>
 </body>
 </html>
