@@ -28,6 +28,22 @@
     * { font-family: 'Cairo', sans-serif; -webkit-tap-highlight-color: transparent; }
     body { background-color: #f3f4f6; padding-bottom: 85px; }
     .hide-scroll::-webkit-scrollbar { display: none; }
+    @media print {
+      body * { visibility: hidden !important; }
+      #invoice-printable-area, #invoice-printable-area * { visibility: visible !important; }
+      #invoice-printable-area {
+        position: fixed !important;
+        left: 0 !important;
+        top: 0 !important;
+        width: 100% !important;
+        background: #fff !important;
+        box-shadow: none !important;
+        border: none !important;
+        padding: 12px !important;
+        margin: 0 !important;
+      }
+      .no-print { display: none !important; }
+    }
   </style>
 </head>
 <body class="text-gray-800 max-w-md mx-auto min-h-screen bg-gray-50 shadow-xl relative">
@@ -47,6 +63,69 @@
     <div class="bg-white rounded-2xl w-full max-w-sm p-5 space-y-4 shadow-2xl relative max-h-[90vh] overflow-y-auto">
       <button onclick="closeProfileModal()" class="absolute top-3 left-3 text-gray-400 hover:text-gray-600 font-bold text-lg">✕</button>
       <div id="modal-profile-body" class="text-center"></div>
+    </div>
+  </div>
+
+  <!-- نافذة الفاتورة والوصل (A4 / طابعة حرارية + QR Code) -->
+  <div id="invoice-modal" class="fixed inset-0 bg-black/60 z-50 hidden flex items-center justify-center p-3">
+    <div class="bg-white rounded-2xl w-full max-w-sm p-4 space-y-3 shadow-2xl relative max-h-[92vh] overflow-y-auto">
+      <div class="flex items-center justify-between border-b border-gray-100 pb-2 no-print">
+        <div class="flex gap-1.5">
+          <button id="inv-fmt-a4" onclick="switchInvoicePrintFormat('a4')" class="px-2.5 py-1 rounded-lg text-xs font-extrabold bg-emerald-600 text-white">📄 فاتورة A4 / PDF</button>
+          <button id="inv-fmt-thermal" onclick="switchInvoicePrintFormat('thermal')" class="px-2.5 py-1 rounded-lg text-xs font-extrabold bg-gray-100 text-gray-700">🧾 طابعة حرارية 80mm</button>
+        </div>
+        <button onclick="closeInvoiceModal()" class="text-gray-400 hover:text-gray-700 font-extrabold text-lg px-1">✕</button>
+      </div>
+
+      <div id="invoice-printable-area" class="bg-white border border-gray-200 rounded-xl p-3.5 text-xs space-y-2.5"></div>
+
+      <div id="invoice-modal-actions" class="space-y-2 pt-1 no-print"></div>
+    </div>
+  </div>
+
+  <!-- نافذة تسجيل بيع مباشر في المحل (للتاجر) -->
+  <div id="direct-sale-modal" class="fixed inset-0 bg-black/50 z-50 hidden flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl w-full max-w-sm p-5 space-y-3 shadow-2xl relative max-h-[90vh] overflow-y-auto">
+      <button onclick="closeDirectSaleModal()" class="absolute top-3 left-3 text-gray-400 hover:text-gray-600 font-bold text-lg">✕</button>
+      <h3 class="font-extrabold text-sm text-gray-900">🏪 تسجيل بيع مباشر في المحل</h3>
+      <p class="text-[11px] text-gray-500">يُضاف مباشرة إلى مداخيل وأرباح اليوم ويُصدر له وصل فوري</p>
+
+      ${/* اختيار من المخزون أو كتابة حرة */ ''}
+      <div>
+        <label class="block text-xs font-bold text-gray-700 mb-1">اختر سلعة من مخزونك (اختياري)</label>
+        <select id="ds-inv-select" onchange="onSelectDirectSaleInventory(this.value)" class="w-full px-3 py-2 rounded-xl border border-gray-200 text-xs bg-white outline-none">
+          <option value="">-- إدخال يدوي أو اختر من القائمة --</option>
+        </select>
+      </div>
+
+      <div>
+        <label class="block text-xs font-bold text-gray-700 mb-1">اسم السلعة المباعة</label>
+        <input type="text" id="ds-item-name" placeholder="مثال: زيت المائدة 5ل" class="w-full px-3 py-2 rounded-xl border border-gray-200 text-xs outline-none">
+      </div>
+
+      <div class="grid grid-cols-3 gap-2">
+        <div>
+          <label class="block text-[11px] font-bold text-gray-700 mb-1">الكمية</label>
+          <input type="number" id="ds-qty" value="1" min="1" class="w-full px-2.5 py-2 rounded-xl border border-gray-200 text-xs font-bold outline-none">
+        </div>
+        <div>
+          <label class="block text-[11px] font-bold text-gray-700 mb-1">سعر البيع (دج)</label>
+          <input type="number" id="ds-sell-price" placeholder="750" class="w-full px-2.5 py-2 rounded-xl border border-gray-200 text-xs font-bold text-emerald-700 outline-none">
+        </div>
+        <div>
+          <label class="block text-[11px] font-bold text-gray-700 mb-1">التكلفة (سري)</label>
+          <input type="number" id="ds-cost-price" placeholder="680" class="w-full px-2.5 py-2 rounded-xl border border-gray-200 text-xs font-bold text-gray-600 outline-none">
+        </div>
+      </div>
+
+      <div>
+        <label class="block text-xs font-bold text-gray-700 mb-1">اسم الزبون (اختياري)</label>
+        <input type="text" id="ds-customer-name" placeholder="زبون المحل" class="w-full px-3 py-2 rounded-xl border border-gray-200 text-xs outline-none">
+      </div>
+
+      <button id="submit-ds-btn" onclick="submitDirectShopSale()" class="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold py-3 rounded-xl text-xs shadow">
+        ✔️ تأكيد البيع وإضافته لأرباح اليوم
+      </button>
     </div>
   </div>
 
@@ -213,7 +292,7 @@
 
     <main id="main-content" class="p-4"></main>
 
-    <nav id="bottom-nav" class="fixed bottom-0 left-0 right-0 max-w-md mx-auto bg-white border-t border-gray-200 px-2 py-2 flex justify-around items-center z-40">
+    <nav id="bottom-nav" class="fixed bottom-0 left-0 right-0 max-w-md mx-auto bg-white border-t border-gray-200 px-1 py-2 flex justify-around items-center z-40">
     </nav>
   </div>
 
@@ -364,11 +443,12 @@
     let openRequests = [];
     let flashDeals = [];
     let historyRequests = [];
+    let merchantDeliveredRequests = [];
     let allMerchants = [];
     let merchantInventory = [];
     let wilayaCatalogSuggestions = [];
     let inventorySearchQuery = '';
-    let inventorySubTab = 'items'; // 'items' | 'pos_sync' | 'delivery_58'
+    let inventorySubTab = 'items';
     let showAllWilayas = false;
     let merchantSearchQuery = '';
     let merchantCategoryFilter = 'all';
@@ -376,6 +456,12 @@
     let offersSortMode = 'price';
     let dealTiers = [{ label: '1 وحدة', price: '' }];
     let activeDealForModal = null;
+
+    // متغيرات المرحلة الثانية (الأرباح والفواتير)
+    let selectedProfitDate = new Date().toISOString().split('T')[0];
+    let profitUnlocked = false;
+    let activeInvoiceData = null;
+    let invoicePrintFormat = 'a4'; // 'a4' | 'thermal'
 
     function escapeHTML(str) {
       if (str === null || str === undefined) return '';
@@ -453,6 +539,15 @@
       return `منذ ${diffDays} يوم (${timeStr})`;
     }
 
+    function getLocalDateKey(dateString) {
+      if (!dateString) return new Date().toISOString().split('T')[0];
+      const d = new Date(dateString);
+      const yyyy = d.getFullYear();
+      const mm = String(d.getMonth() + 1).padStart(2, '0');
+      const dd = String(d.getDate()).padStart(2, '0');
+      return `${yyyy}-${mm}-${dd}`;
+    }
+
     function showToast(msg, isError = false) {
       const toast = document.getElementById('toast');
       const box = document.getElementById('toast-box');
@@ -481,7 +576,7 @@
       });
     }
 
-    // --- إدارة كود ربط اللوجيسيال وإعدادات التوصيل لـ 58 ولاية ---
+    // --- إدارة كود ربط اللوجيسيال وإعدادات التوصيل والفوترة ---
     function getMerchantPosApiKey() {
       if (currentProfile && currentProfile.pos_api_key) return currentProfile.pos_api_key;
       const storageKey = `tasairati_pos_key_${currentProfile.id}`;
@@ -530,7 +625,12 @@
         national_home_fee: 600,
         stopdesk_fee: 350,
         auto_respond_enabled: true,
-        wilaya_fees: {}
+        wilaya_fees: {},
+        invoice_type: 'bon', // 'bon' | 'facture'
+        rc_number: '',
+        nif_number: '',
+        ai_number: '',
+        profit_pin: ''
       };
       if (!merchantObj) return defaults;
       if (merchantObj.delivery_settings && typeof merchantObj.delivery_settings === 'object') {
@@ -993,7 +1093,7 @@
         .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'quote_requests' }, async payload => {
           const req = payload.new;
           if (currentProfile.role === 'merchant' && (showAllWilayas || req.wilaya === currentProfile.wilaya)) {
-            if (req.status === 'open' && !(req.title || '').startsWith('[عرض سريع]') && (!currentProfile.category || req.category === currentProfile.category)) {
+            if (req.status === 'open' && !(req.title || '').startsWith('[عرض سريع]') && !(req.title || '').startsWith('[بيع مباشر]') && (!currentProfile.category || req.category === currentProfile.category)) {
               await checkAndAutoRespondInventory(req);
               triggerBackgroundNotification("📦 طلب تسعيرة جديد!", `طلب جديد في ${req.wilaya} (${req.title})`);
               loadAllData();
@@ -1001,6 +1101,14 @@
               triggerBackgroundNotification("⚡ طلب عرض سريع جديد!", `${req.title}`);
               setTimeout(() => loadAllData(), 1000);
             }
+          }
+        })
+        .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'quote_requests' }, payload => {
+          const req = payload.new;
+          if (currentProfile.role === 'customer' && req.customer_id === currentProfile.id && req.status === 'delivered') {
+            triggerBackgroundNotification("🧾 وصلتك فاتورة جديدة!", `تم تسليم طلبك (${req.title}) وإصدار الفاتورة.`);
+            showToast("🧾 تم تأكيد تسليم طلبك! يمكنك الآن عرض وطباعة الفاتورة.");
+            loadAllData();
           }
         })
         .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'quote_offers' }, payload => {
@@ -1020,21 +1128,18 @@
       const normReq = normalizeArabicText(rawName);
       if (!normReq) return null;
 
-      // 1. مطابقة تامة بالاسم أو الباركود
       let match = merchantInvList.find(inv => {
         if (inv.barcode && String(inv.barcode).trim() === rawName) return true;
         return normalizeArabicText(inv.item_name) === normReq;
       });
       if (match) return match;
 
-      // 2. مطابقة جزئية مباشرة (أحدهما يحتوي الآخر)
       match = merchantInvList.find(inv => {
         const normInv = normalizeArabicText(inv.item_name);
         return normInv && (normInv.includes(normReq) || normReq.includes(normInv));
       });
       if (match) return match;
 
-      // 3. مطابقة الكلمات المفتاحية (للأوصاف العربية/الفرنسية المختلطة)
       const reqWords = normReq.split(' ').filter(w => w.length > 2);
       if (reqWords.length > 0) {
         let bestMatch = null;
@@ -1057,7 +1162,6 @@
       if (!reqObj || !reqObj.id || !reqObj.items || reqObj.items.length === 0) return 0;
 
       try {
-        // جلب تجار نفس الولاية ونفس المجال
         const { data: merchants } = await sb
           .from('profiles')
           .select('*')
@@ -1080,7 +1184,6 @@
 
         if (!allInv || allInv.length === 0) return 0;
 
-        // التحقق من العروض الموجودة مسبقاً لتجنب التكرار
         const { data: existingOffers } = await sb
           .from('quote_offers')
           .select('merchant_id')
@@ -1115,6 +1218,7 @@
                 qty: reqItem.qty,
                 price: linePrice,
                 unit_price: Number(matchedInv.unit_price),
+                cost_price: Number(matchedInv.cost_price || 0),
                 matched_name: matchedInv.item_name,
                 available: true
               });
@@ -1123,6 +1227,7 @@
                 name: reqItem.name,
                 qty: reqItem.qty,
                 price: 0,
+                cost_price: 0,
                 available: false
               });
             }
@@ -1152,7 +1257,7 @@
     }
 
     async function checkAndAutoRespondInventory(req) {
-      if (req.status !== 'open' || (req.title || '').startsWith('[عرض سريع]')) return;
+      if (req.status !== 'open' || (req.title || '').startsWith('[عرض سريع]') || (req.title || '').startsWith('[بيع مباشر]')) return;
       if (!req.items || req.items.length === 0) return;
 
       const delivSettings = getDeliverySettingsForMerchant(currentProfile);
@@ -1180,9 +1285,15 @@
           let itemTotal = Number(foundMatch.unit_price) * qtyNum;
           sum += itemTotal;
           matchedCount++;
-          pricedItems.push({ name: item.name, qty: item.qty, price: itemTotal, available: true });
+          pricedItems.push({
+            name: item.name,
+            qty: item.qty,
+            price: itemTotal,
+            cost_price: Number(foundMatch.cost_price || 0),
+            available: true
+          });
         } else {
-          pricedItems.push({ name: item.name, qty: item.qty, price: 0, available: false });
+          pricedItems.push({ name: item.name, qty: item.qty, price: 0, cost_price: 0, available: false });
         }
       }
 
@@ -1206,20 +1317,23 @@
       const nav = document.getElementById('bottom-nav');
       if (isMerchant) {
         nav.innerHTML = `
-          <button onclick="switchTab('home')" id="nav-home" class="flex flex-col items-center text-emerald-600 font-bold text-xs">
-            <span class="text-xl mb-0.5">📥</span><span>الطلبات</span>
+          <button onclick="switchTab('home')" id="nav-home" class="flex flex-col items-center text-emerald-600 font-bold text-[10px]">
+            <span class="text-lg mb-0.5">📥</span><span>الطلبات</span>
           </button>
-          <button onclick="switchTab('inventory')" id="nav-inventory" class="flex flex-col items-center text-gray-400 font-bold text-xs">
-            <span class="text-xl mb-0.5">📦</span><span>اللوجيسيال</span>
+          <button onclick="switchTab('inventory')" id="nav-inventory" class="flex flex-col items-center text-gray-400 font-bold text-[10px]">
+            <span class="text-lg mb-0.5">📦</span><span>اللوجيسيال</span>
           </button>
-          <button onclick="switchTab('deals')" id="nav-deals" class="flex flex-col items-center text-gray-400 font-bold text-xs">
-            <span class="text-xl mb-0.5">⚡</span><span>عروضي</span>
+          <button onclick="switchTab('profits')" id="nav-profits" class="flex flex-col items-center text-gray-400 font-bold text-[10px]">
+            <span class="text-lg mb-0.5">💰</span><span>الأرباح</span>
           </button>
-          <button onclick="switchTab('history')" id="nav-history" class="flex flex-col items-center text-gray-400 font-bold text-xs">
-            <span class="text-xl mb-0.5">📜</span><span>السجل</span>
+          <button onclick="switchTab('deals')" id="nav-deals" class="flex flex-col items-center text-gray-400 font-bold text-[10px]">
+            <span class="text-lg mb-0.5">⚡</span><span>عروضي</span>
           </button>
-          <button onclick="switchTab('profile')" id="nav-profile" class="flex flex-col items-center text-gray-400 font-bold text-xs">
-            <span class="text-xl mb-0.5">🏪</span><span>حسابي</span>
+          <button onclick="switchTab('history')" id="nav-history" class="flex flex-col items-center text-gray-400 font-bold text-[10px]">
+            <span class="text-lg mb-0.5">📜</span><span>السجل</span>
+          </button>
+          <button onclick="switchTab('profile')" id="nav-profile" class="flex flex-col items-center text-gray-400 font-bold text-[10px]">
+            <span class="text-lg mb-0.5">🏪</span><span>حسابي</span>
           </button>`;
       } else {
         nav.innerHTML = `
@@ -1243,10 +1357,11 @@
 
     function switchTab(tab) {
       currentTab = tab;
-      const tabsList = currentProfile.role === 'merchant' ? ['home', 'inventory', 'deals', 'history', 'profile'] : ['home', 'deals', 'merchants', 'orders', 'profile'];
+      const isMer = currentProfile.role === 'merchant';
+      const tabsList = isMer ? ['home', 'inventory', 'profits', 'deals', 'history', 'profile'] : ['home', 'deals', 'merchants', 'orders', 'profile'];
       tabsList.forEach(t => {
         const el = document.getElementById(`nav-${t}`);
-        if (el) el.className = `flex flex-col items-center font-bold text-xs ${t === tab ? 'text-emerald-600' : 'text-gray-400'}`;
+        if (el) el.className = `flex flex-col items-center font-bold ${isMer ? 'text-[10px]' : 'text-xs'} ${t === tab ? 'text-emerald-600' : 'text-gray-400'}`;
       });
       renderCurrentTab();
     }
@@ -1269,7 +1384,6 @@
           const { data: invData } = await sb.from('merchant_inventory').select('*').eq('merchant_id', currentProfile.id);
           merchantInventory = invData || [];
         } else {
-          // جلب أسماء السلع المتوفرة في ولاية الزبون لتسهيل الإكمال التلقائي ومطابقة اللوجيسيال
           const localMerchantIds = allMerchants.filter(m => m.wilaya === currentProfile.wilaya).map(m => m.id);
           if (localMerchantIds.length > 0) {
             const { data: catItems } = await sb
@@ -1286,11 +1400,11 @@
         if (currentProfile.role === 'customer') {
           const { data } = await sb
             .from('quote_requests')
-            .select('*, quote_offers(*, profiles(shop_name, full_name, phone, municipality, avatar_url, category, latitude, longitude))')
+            .select('*, quote_offers(*, profiles(shop_name, full_name, phone, wilaya, municipality, avatar_url, category, latitude, longitude, delivery_settings))')
             .eq('customer_id', currentProfile.id)
             .order('created_at', { ascending: false });
-          myRequests = data || [];
-          historyRequests = (myRequests || []).filter(r => r.status === 'delivered');
+          myRequests = (data || []).filter(r => !(r.title || '').startsWith('[بيع مباشر]'));
+          historyRequests = myRequests.filter(r => r.status === 'delivered');
         } else {
           let query = sb
             .from('quote_requests')
@@ -1310,11 +1424,16 @@
             });
           }
 
-          openRequests = allReqs.filter(r => r.status === 'open' && !(r.title || '').startsWith('[عرض سريع]'));
+          openRequests = allReqs.filter(r => r.status === 'open' && !(r.title || '').startsWith('[عرض سريع]') && !(r.title || '').startsWith('[بيع مباشر]'));
           
           historyRequests = allReqs.filter(r => {
             const hasAcceptedOffer = (r.quote_offers || []).some(o => o.merchant_id === currentProfile.id && o.status === 'accepted');
             return hasAcceptedOffer && r.status !== 'delivered';
+          });
+
+          merchantDeliveredRequests = allReqs.filter(r => {
+            const hasAcceptedOffer = (r.quote_offers || []).some(o => o.merchant_id === currentProfile.id && o.status === 'accepted');
+            return hasAcceptedOffer && r.status === 'delivered';
           });
         }
       } catch (err) {
@@ -1333,6 +1452,10 @@
         if (editWilaya) editWilaya.value = currentProfile.wilaya;
         const editCat = document.getElementById('edit-category');
         if (editCat && currentProfile.category) editCat.value = currentProfile.category;
+        return;
+      }
+      if (currentTab === 'profits' && currentProfile.role === 'merchant') {
+        main.innerHTML = renderMerchantProfitsView();
         return;
       }
       if (currentTab === 'history') {
@@ -1363,6 +1486,577 @@
       }
     }
 
+    // =========================================================================
+    // المرحلة 2: لوحة المبيعات والأرباح اليومية للتاجر + الفواتير والطباعة
+    // =========================================================================
+    function computeOrderFinancials(req, offer) {
+      const items = (offer && offer.priced_items && offer.priced_items.length > 0) ? offer.priced_items : (req.items || []);
+      const deliveryFee = Number(offer?.delivery_fee || 0);
+      let productsRevenue = 0;
+      let totalCost = 0;
+
+      for (const it of items) {
+        if (it.available === false) continue;
+        const lineRev = Number(it.price || 0);
+        if (lineRev <= 0) continue;
+        productsRevenue += lineRev;
+
+        const qtyNum = parseFloat(String(it.qty || '1').replace(/[^\d.]/g, '')) || 1;
+        let unitCost = Number(it.cost_price || 0);
+        if (unitCost <= 0 && merchantInventory && merchantInventory.length > 0) {
+          const matched = matchInventoryItem(it, merchantInventory);
+          if (matched && Number(matched.cost_price) > 0) {
+            unitCost = Number(matched.cost_price);
+          }
+        }
+        totalCost += unitCost * qtyNum;
+      }
+
+      if (productsRevenue === 0 && Number(offer?.total_price || 0) > 0) {
+        productsRevenue = Math.max(0, Number(offer.total_price) - deliveryFee);
+      }
+
+      const grandTotal = Number(offer?.total_price || (productsRevenue + deliveryFee));
+      const netProfit = productsRevenue - totalCost;
+      return { productsRevenue, totalCost, netProfit, deliveryFee, grandTotal, items };
+    }
+
+    function unlockProfitDashboard() {
+      const settings = getDeliverySettingsForMerchant(currentProfile);
+      const entered = (document.getElementById('profit-pin-input')?.value || '').trim();
+      if (entered === String(settings.profit_pin)) {
+        profitUnlocked = true;
+        showToast('🔓 تم فتح تفاصيل الأرباح وسعر التكلفة');
+        renderCurrentTab();
+      } else {
+        showToast('❌ الرمز السري غير صحيح', true);
+      }
+    }
+
+    function lockProfitDashboard() {
+      profitUnlocked = false;
+      renderCurrentTab();
+    }
+
+    async function setOrUpdateProfitPin() {
+      const newPin = (document.getElementById('new-profit-pin-input')?.value || '').trim();
+      if (newPin && !/^\d{4}$/.test(newPin)) {
+        return showToast('يرجى إدخال رمز سري مكون من 4 أرقام فقط', true);
+      }
+      const settings = getDeliverySettingsForMerchant(currentProfile);
+      settings.profit_pin = newPin;
+      localStorage.setItem(`tasairati_delivery_58_${currentProfile.id}`, JSON.stringify(settings));
+      currentProfile.delivery_settings = settings;
+      localStorage.setItem('tasairati_cached_profile', JSON.stringify(currentProfile));
+      if (sb) {
+        await sb.from('profiles').update({ delivery_settings: settings }).eq('id', currentProfile.id);
+      }
+      profitUnlocked = true;
+      showToast(newPin ? '🔒 تم تفعيل قفل الأرباح بالرمز السري!' : '🔓 تم إلغاء الرمز السري');
+      renderCurrentTab();
+    }
+
+    function openDirectSaleModal() {
+      const sel = document.getElementById('ds-inv-select');
+      if (sel) {
+        sel.innerHTML = `<option value="">-- إدخال يدوي أو اختر من مخزونك --</option>` +
+          merchantInventory.map(i => `<option value="${i.id}">${escapeHTML(i.item_name)} (${Number(i.unit_price).toLocaleString()} دج)</option>`).join('');
+      }
+      document.getElementById('ds-item-name').value = '';
+      document.getElementById('ds-qty').value = '1';
+      document.getElementById('ds-sell-price').value = '';
+      document.getElementById('ds-cost-price').value = '';
+      document.getElementById('ds-customer-name').value = '';
+      document.getElementById('direct-sale-modal').classList.remove('hidden');
+    }
+
+    function closeDirectSaleModal() {
+      document.getElementById('direct-sale-modal').classList.add('hidden');
+    }
+
+    function onSelectDirectSaleInventory(invId) {
+      const item = merchantInventory.find(i => String(i.id) === String(invId));
+      if (!item) return;
+      document.getElementById('ds-item-name').value = item.item_name;
+      document.getElementById('ds-sell-price').value = item.unit_price;
+      document.getElementById('ds-cost-price').value = item.cost_price || '';
+    }
+
+    async function submitDirectShopSale() {
+      const itemName = document.getElementById('ds-item-name').value.trim();
+      const qty = Math.max(1, Number(document.getElementById('ds-qty').value || 1));
+      const unitSell = Number(document.getElementById('ds-sell-price').value || 0);
+      const unitCost = Number(document.getElementById('ds-cost-price').value || 0);
+      const customerLabel = document.getElementById('ds-customer-name').value.trim() || 'زبون المحل (بيع مباشر)';
+      const selectedInvId = document.getElementById('ds-inv-select')?.value;
+
+      if (!itemName || unitSell <= 0) return showToast('يرجى إدخال اسم السلعة وسعر البيع', true);
+
+      const lineTotal = unitSell * qty;
+      const btn = document.getElementById('submit-ds-btn');
+      if (btn) btn.disabled = true;
+
+      try {
+        const pricedItem = {
+          name: itemName,
+          qty: String(qty),
+          price: lineTotal,
+          unit_price: unitSell,
+          cost_price: unitCost,
+          available: true
+        };
+
+        const { data: insertedReq, error } = await sb.from('quote_requests').insert({
+          customer_id: currentProfile.id,
+          category: currentProfile.category || 'supermarket',
+          wilaya: currentProfile.wilaya,
+          municipality: currentProfile.municipality || customerLabel,
+          title: `[بيع مباشر] ${itemName} (${qty})`,
+          items: [pricedItem],
+          delivery_type: 'pickup',
+          status: 'delivered'
+        }).select('*').single();
+
+        if (error) throw new Error(error.message);
+
+        await sb.from('quote_offers').insert({
+          request_id: insertedReq.id,
+          merchant_id: currentProfile.id,
+          total_price: lineTotal,
+          delivery_fee: 0,
+          priced_items: [pricedItem],
+          status: 'accepted'
+        });
+
+        // خصم الكمية من المخزون إذا كانت السلعة مسجلة ولها كمية
+        if (selectedInvId) {
+          const invItem = merchantInventory.find(i => String(i.id) === String(selectedInvId));
+          if (invItem && Number(invItem.stock_qty) > 0) {
+            const newStock = Math.max(0, Number(invItem.stock_qty) - qty);
+            await sb.from('merchant_inventory').update({ stock_qty: newStock }).eq('id', invItem.id);
+          }
+        }
+
+        closeDirectSaleModal();
+        showToast(`✅ تم تسجيل البيع (+${lineTotal.toLocaleString()} دج) وإصدار الوصل!`);
+        await loadAllData();
+        openInvoiceModalForOrder(insertedReq.id);
+      } catch (err) {
+        showToast('تعذر تسجيل البيع: ' + err.message, true);
+      } finally {
+        if (btn) btn.disabled = false;
+      }
+    }
+
+    function renderMerchantProfitsView() {
+      const settings = getDeliverySettingsForMerchant(currentProfile);
+      const hasPin = Boolean(settings.profit_pin);
+      const isLocked = hasPin && !profitUnlocked;
+
+      const todayKey = getLocalDateKey(new Date().toISOString());
+      const yesterdayObj = new Date();
+      yesterdayObj.setDate(yesterdayObj.getDate() - 1);
+      const yesterdayKey = getLocalDateKey(yesterdayObj.toISOString());
+
+      // تجميع كل طلبات التاجر المؤكدة (المسلّمة + قيد التوصيل)
+      const dayDelivered = merchantDeliveredRequests.filter(r => getLocalDateKey(r.created_at) === selectedProfitDate);
+      const yesterdayDelivered = merchantDeliveredRequests.filter(r => getLocalDateKey(r.created_at) === yesterdayKey);
+      const inTransitOrders = historyRequests; // accepted & not yet delivered
+
+      let confirmedRevenue = 0;
+      let confirmedCost = 0;
+      let confirmedProfit = 0;
+      let confirmedDeliveryTotal = 0;
+      let appSalesRev = 0;
+      let directSalesRev = 0;
+      const productProfitMap = {};
+
+      for (const req of dayDelivered) {
+        const offer = (req.quote_offers || []).find(o => o.merchant_id === currentProfile.id && o.status === 'accepted');
+        const fin = computeOrderFinancials(req, offer);
+        confirmedRevenue += fin.productsRevenue;
+        confirmedCost += fin.totalCost;
+        confirmedProfit += fin.netProfit;
+        confirmedDeliveryTotal += fin.deliveryFee;
+
+        if ((req.title || '').startsWith('[بيع مباشر]')) directSalesRev += fin.productsRevenue;
+        else appSalesRev += fin.productsRevenue;
+
+        for (const it of fin.items) {
+          if (it.available === false || Number(it.price) <= 0) continue;
+          const qtyNum = parseFloat(String(it.qty || '1').replace(/[^\d.]/g, '')) || 1;
+          let unitCost = Number(it.cost_price || 0);
+          if (unitCost <= 0 && merchantInventory.length > 0) {
+            const matched = matchInventoryItem(it, merchantInventory);
+            if (matched) unitCost = Number(matched.cost_price || 0);
+          }
+          const itemProfit = Number(it.price) - (unitCost * qtyNum);
+          const key = it.name;
+          if (!productProfitMap[key]) productProfitMap[key] = { name: key, qty: 0, rev: 0, profit: 0 };
+          productProfitMap[key].qty += qtyNum;
+          productProfitMap[key].rev += Number(it.price);
+          productProfitMap[key].profit += itemProfit;
+        }
+      }
+
+      // حساب مداخيل أمس للمقارنة
+      let yesterdayRevenue = 0;
+      for (const req of yesterdayDelivered) {
+        const offer = (req.quote_offers || []).find(o => o.merchant_id === currentProfile.id && o.status === 'accepted');
+        yesterdayRevenue += computeOrderFinancials(req, offer).productsRevenue;
+      }
+
+      let growthBadge = '';
+      if (selectedProfitDate === todayKey && yesterdayRevenue > 0) {
+        const pct = Math.round(((confirmedRevenue - yesterdayRevenue) / yesterdayRevenue) * 100);
+        growthBadge = pct >= 0
+          ? `<span class="bg-emerald-100 text-emerald-800 text-[10px] font-extrabold px-2 py-0.5 rounded-full">▲ +${pct}% مقارنة بأمس</span>`
+          : `<span class="bg-red-100 text-red-700 text-[10px] font-extrabold px-2 py-0.5 rounded-full">▼ ${pct}% مقارنة بأمس</span>`;
+      }
+
+      // مبيعات قيد التوصيل
+      let transitRevenue = 0;
+      let transitProfit = 0;
+      for (const req of inTransitOrders) {
+        const offer = (req.quote_offers || []).find(o => o.merchant_id === currentProfile.id && o.status === 'accepted');
+        const fin = computeOrderFinancials(req, offer);
+        transitRevenue += fin.productsRevenue;
+        transitProfit += fin.netProfit;
+      }
+
+      const topProducts = Object.values(productProfitMap).sort((a, b) => b.profit - a.profit).slice(0, 3);
+      const profitMarginPct = confirmedRevenue > 0 ? Math.round((confirmedProfit / confirmedRevenue) * 100) : 0;
+
+      return `
+        <div class="space-y-4">
+          <div class="bg-gradient-to-r from-emerald-700 to-teal-800 rounded-2xl p-4 text-white shadow-md">
+            <div class="flex justify-between items-start">
+              <div>
+                <h2 class="font-extrabold text-base flex items-center gap-2"><span>💰</span> يوميتي والأرباح الصافية</h2>
+                <p class="text-xs text-emerald-100 mt-0.5">متابعة المبيعات المحصّلة، رأس المال، وصافي الربح الحقيقي</p>
+              </div>
+              ${hasPin && !isLocked ? `<button onclick="lockProfitDashboard()" class="bg-white/20 px-2.5 py-1 rounded-xl text-xs font-bold">🔒 قفل</button>` : ''}
+            </div>
+
+            <div class="flex items-center gap-2 mt-3">
+              <button onclick="selectedProfitDate='${todayKey}';renderCurrentTab()" class="px-3 py-1.5 rounded-xl text-xs font-extrabold ${selectedProfitDate === todayKey ? 'bg-white text-emerald-800' : 'bg-white/15 text-white'}">اليوم</button>
+              <button onclick="selectedProfitDate='${yesterdayKey}';renderCurrentTab()" class="px-3 py-1.5 rounded-xl text-xs font-extrabold ${selectedProfitDate === yesterdayKey ? 'bg-white text-emerald-800' : 'bg-white/15 text-white'}">أمس</button>
+              <input type="date" value="${selectedProfitDate}" onchange="selectedProfitDate=this.value;renderCurrentTab()" class="flex-1 px-2.5 py-1.5 rounded-xl text-xs font-bold text-gray-800 bg-white outline-none">
+            </div>
+          </div>
+
+          <!-- بطاقة إجمالي المداخيل المؤكدة (ظاهرة دائماً) -->
+          <div class="bg-white rounded-2xl p-4 shadow-sm border border-gray-100 space-y-3">
+            <div class="flex justify-between items-center">
+              <span class="text-xs font-bold text-gray-500">إجمالي مبيعات السلع المحصّلة (${dayDelivered.length} عملية):</span>
+              ${growthBadge}
+            </div>
+            <div class="text-2xl font-extrabold text-gray-900">${confirmedRevenue.toLocaleString()} <span class="text-sm font-bold text-gray-500">دج</span></div>
+
+            <div class="grid grid-cols-2 gap-2 pt-2 border-t border-gray-100 text-xs">
+              <div class="bg-emerald-50/70 p-2.5 rounded-xl">
+                <div class="text-[11px] text-gray-500">📱 عبر التطبيق:</div>
+                <div class="font-extrabold text-emerald-800 mt-0.5">${appSalesRev.toLocaleString()} دج</div>
+              </div>
+              <div class="bg-blue-50/70 p-2.5 rounded-xl">
+                <div class="text-[11px] text-gray-500">🏪 بيع مباشر بالمحل:</div>
+                <div class="font-extrabold text-blue-800 mt-0.5">${directSalesRev.toLocaleString()} دج</div>
+              </div>
+            </div>
+
+            <div class="flex justify-between items-center text-xs bg-gray-50 px-3 py-2 rounded-xl">
+              <span class="text-gray-500">🚚 مصاريف التوصيل (معزولة عن الربح):</span>
+              <span class="font-extrabold text-gray-700">${confirmedDeliveryTotal.toLocaleString()} دج</span>
+            </div>
+
+            <button onclick="openDirectSaleModal()" class="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold py-2.5 rounded-xl text-xs shadow-sm">
+              ➕ تسجيل بيع مباشر في المحل الآن
+            </button>
+          </div>
+
+          <!-- قسم صافي الربح ورأس المال (محمي برمز PIN إذا فعّله التاجر) -->
+          ${isLocked ? `
+            <div class="bg-amber-50 border-2 border-amber-200 rounded-2xl p-4 text-center space-y-2.5">
+              <div class="text-2xl">🔒</div>
+              <h3 class="font-extrabold text-sm text-amber-900">تفاصيل صافي الربح ورأس المال محمية برمز سري</h3>
+              <p class="text-[11px] text-amber-700">أدخل الرمز السري المكون من 4 أرقام لإظهار أرباحك الصافية</p>
+              <div class="flex gap-2 max-w-xs mx-auto">
+                <input type="password" id="profit-pin-input" maxlength="4" inputmode="numeric" placeholder="••••" class="flex-1 px-3 py-2 rounded-xl border border-amber-300 bg-white text-center font-extrabold text-sm tracking-widest outline-none">
+                <button onclick="unlockProfitDashboard()" class="bg-amber-600 text-white px-4 py-2 rounded-xl text-xs font-extrabold">فتح</button>
+              </div>
+            </div>
+          ` : `
+            <div class="grid grid-cols-2 gap-2.5">
+              <div class="bg-white rounded-2xl p-3.5 shadow-sm border border-emerald-200">
+                <div class="text-[11px] font-bold text-gray-500">💵 صافي الربح المحصّل</div>
+                <div class="text-lg font-extrabold text-emerald-700 mt-1">${confirmedProfit.toLocaleString()} دج</div>
+                <div class="text-[10px] font-bold text-emerald-600 mt-0.5">هامش الربح: ${profitMarginPct}%</div>
+              </div>
+              <div class="bg-white rounded-2xl p-3.5 shadow-sm border border-gray-100">
+                <div class="text-[11px] font-bold text-gray-500">📦 رأس مال السلع المباعة</div>
+                <div class="text-lg font-extrabold text-gray-800 mt-1">${confirmedCost.toLocaleString()} دج</div>
+                <div class="text-[10px] text-gray-400 mt-0.5">حسب سعر الشراء المسجل</div>
+              </div>
+            </div>
+
+            <!-- مبيعات قيد التوصيل -->
+            <div class="bg-amber-50/70 rounded-2xl p-3.5 border border-amber-200 flex justify-between items-center">
+              <div>
+                <div class="text-xs font-extrabold text-amber-900">🚚 مبيعات قيد التوصيل (${inTransitOrders.length} طلبات)</div>
+                <div class="text-[11px] text-amber-700 mt-0.5">تُضاف للأرباح المؤكدة فور تسليمها للزبون</div>
+              </div>
+              <div class="text-left">
+                <div class="text-sm font-extrabold text-amber-900">${transitRevenue.toLocaleString()} دج</div>
+                <div class="text-[10px] font-bold text-emerald-700">ربح متوقع: +${transitProfit.toLocaleString()} دج</div>
+              </div>
+            </div>
+
+            <!-- أكثر 3 سلع ربحاً اليوم -->
+            ${topProducts.length > 0 ? `
+              <div class="bg-white rounded-2xl p-4 shadow-sm border border-gray-100 space-y-2">
+                <h3 class="font-extrabold text-xs text-gray-800">🏆 أكثر السلع تحقيقاً للربح في هذا اليوم:</h3>
+                ${topProducts.map((p, idx) => `
+                  <div class="flex justify-between items-center bg-gray-50 px-3 py-2 rounded-xl text-xs">
+                    <div>
+                      <span class="font-extrabold text-emerald-700">#${idx + 1}</span>
+                      <span class="font-bold text-gray-800">${escapeHTML(p.name)}</span>
+                      <span class="text-[11px] text-gray-400">(${p.qty} وحدة)</span>
+                    </div>
+                    <span class="font-extrabold text-emerald-700">+${p.profit.toLocaleString()} دج</span>
+                  </div>
+                `).join('')}
+              </div>
+            ` : ''}
+
+            <!-- إعداد رمز PIN لحماية الأرباح -->
+            <div class="bg-white rounded-2xl p-3.5 shadow-sm border border-gray-100 space-y-2">
+              <div class="text-xs font-extrabold text-gray-800">🔐 حماية الأرباح برمز سري (PIN) عند ترك الهاتف للعامل:</div>
+              <div class="flex gap-2">
+                <input type="password" id="new-profit-pin-input" maxlength="4" inputmode="numeric" value="${escapeHTML(settings.profit_pin || '')}" placeholder="4 أرقام (مثال: 1234)" class="flex-1 px-3 py-2 rounded-xl border border-gray-200 text-xs font-bold outline-none">
+                <button onclick="setOrUpdateProfitPin()" class="bg-gray-800 text-white px-3.5 py-2 rounded-xl text-xs font-bold">حفظ الرمز</button>
+              </div>
+            </div>
+          `}
+
+          <!-- سجل فواتير ومبيعات اليوم -->
+          <div class="space-y-2.5">
+            <div class="flex justify-between items-center px-1">
+              <h3 class="font-extrabold text-sm text-gray-800">🧾 فواتير وعمليات البيع (${dayDelivered.length}):</h3>
+              <button onclick="shareDailyClosingReport('${selectedProfitDate}', ${confirmedRevenue}, ${confirmedProfit}, ${dayDelivered.length})" class="bg-emerald-50 text-emerald-700 border border-emerald-200 px-2.5 py-1 rounded-xl text-[11px] font-bold">📤 مشاركة ملخص اليوم</button>
+            </div>
+
+            ${dayDelivered.length === 0 ? `<p class="text-xs text-gray-400 text-center py-6 bg-white rounded-2xl border border-gray-100">لا توجد مبيعات مسلّمة في هذا التاريخ</p>` :
+              dayDelivered.map(req => {
+                const offer = (req.quote_offers || []).find(o => o.merchant_id === currentProfile.id && o.status === 'accepted');
+                const fin = computeOrderFinancials(req, offer);
+                const customer = req.profiles || {};
+                return `
+                  <div class="bg-white rounded-2xl p-3.5 shadow-sm border border-gray-100 flex justify-between items-center gap-2">
+                    <div>
+                      <div class="font-extrabold text-xs text-gray-900">${escapeHTML(req.title)}</div>
+                      <div class="text-[11px] text-gray-400 mt-0.5">${escapeHTML(customer.full_name || 'زبون')} • ${formatTimeAgo(req.created_at)}</div>
+                      <div class="flex items-center gap-2 mt-1">
+                        <span class="text-xs font-extrabold text-gray-800">المبلغ: ${fin.grandTotal.toLocaleString()} دج</span>
+                        ${!isLocked ? `<span class="text-[11px] font-extrabold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full">ربح: +${fin.netProfit.toLocaleString()} دج</span>` : ''}
+                      </div>
+                    </div>
+                    <button onclick="openInvoiceModalForOrder('${req.id}')" class="bg-emerald-600 text-white px-3 py-2 rounded-xl text-xs font-bold shrink-0 shadow-sm">
+                      🧾 الفاتورة
+                    </button>
+                  </div>
+                `;
+              }).join('')
+            }
+          </div>
+        </div>
+      `;
+    }
+
+    function shareDailyClosingReport(dateStr, revenue, profit, count) {
+      const shop = currentProfile.shop_name || currentProfile.full_name;
+      const text = `📊 *تقرير الإغلاق اليومي — ${shop}*\n📅 التاريخ: ${dateStr}\n🛒 عدد العمليات: ${count}\n💰 إجمالي المبيعات: ${Number(revenue).toLocaleString()} دج\n💵 صافي الربح: ${Number(profit).toLocaleString()} دج\n— عبر تطبيق تسعيرتي DZ`;
+      window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank');
+    }
+
+    // =========================================================================
+    // نظام الفواتير والوصولات (PDF / طابعة حرارية 80mm / QR Code)
+    // =========================================================================
+    function openInvoiceModalForOrder(reqId) {
+      let req = null;
+      let offer = null;
+      let merchant = null;
+      let customer = null;
+
+      if (currentProfile.role === 'merchant') {
+        req = [...merchantDeliveredRequests, ...historyRequests].find(r => String(r.id) === String(reqId));
+        if (!req) return showToast('تعذر العثور على بيانات الطلب', true);
+        offer = (req.quote_offers || []).find(o => o.merchant_id === currentProfile.id && o.status === 'accepted');
+        merchant = currentProfile;
+        customer = req.profiles || { full_name: req.municipality || 'زبون المحل', phone: '' };
+      } else {
+        req = myRequests.find(r => String(r.id) === String(reqId));
+        if (!req) return showToast('تعذر العثور على بيانات الطلب', true);
+        offer = (req.quote_offers || []).find(o => o.status === 'accepted');
+        merchant = offer?.profiles || {};
+        customer = currentProfile;
+      }
+
+      const fin = computeOrderFinancials(req, offer);
+      const shortId = String(req.id).replace(/[^a-zA-Z0-9]/g, '').slice(0, 6).toUpperCase() || '1001';
+      const dateObj = new Date(req.created_at || Date.now());
+      const dateFormatted = `${dateObj.getFullYear()}-${String(dateObj.getMonth() + 1).padStart(2, '0')}-${String(dateObj.getDate()).padStart(2, '0')} ${dateObj.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
+      const invNumber = `TSZ-${dateObj.getFullYear()}${String(dateObj.getMonth() + 1).padStart(2, '0')}-${shortId}`;
+
+      activeInvoiceData = {
+        req,
+        offer,
+        merchant,
+        customer,
+        fin,
+        invNumber,
+        dateFormatted
+      };
+
+      renderInvoiceModalContent();
+      document.getElementById('invoice-modal').classList.remove('hidden');
+    }
+
+    function switchInvoicePrintFormat(fmt) {
+      invoicePrintFormat = fmt;
+      const btnA4 = document.getElementById('inv-fmt-a4');
+      const btnTh = document.getElementById('inv-fmt-thermal');
+      if (btnA4) btnA4.className = `px-2.5 py-1 rounded-lg text-xs font-extrabold ${fmt === 'a4' ? 'bg-emerald-600 text-white' : 'bg-gray-100 text-gray-700'}`;
+      if (btnTh) btnTh.className = `px-2.5 py-1 rounded-lg text-xs font-extrabold ${fmt === 'thermal' ? 'bg-emerald-600 text-white' : 'bg-gray-100 text-gray-700'}`;
+      renderInvoiceModalContent();
+    }
+
+    function renderInvoiceModalContent() {
+      if (!activeInvoiceData) return;
+      const { req, merchant, customer, fin, invNumber, dateFormatted } = activeInvoiceData;
+      const merSettings = getDeliverySettingsForMerchant(merchant);
+      const isFacture = merSettings.invoice_type === 'facture';
+      const docTitle = isFacture ? 'فاتورة رسمية (FACTURE)' : 'وصل شراء واستلام (BON D\'ACHAT)';
+      const isThermal = invoicePrintFormat === 'thermal';
+
+      const qrPayload = `INV:${invNumber}|SHOP:${merchant.shop_name || merchant.full_name}|TOTAL:${fin.grandTotal}DZD|DATE:${dateFormatted}`;
+      const qrImgUrl = `https://api.qrserver.com/v1/create-qr-code/?size=110x110&data=${encodeURIComponent(qrPayload)}`;
+
+      const area = document.getElementById('invoice-printable-area');
+      area.className = isThermal
+        ? 'bg-white border-2 border-dashed border-gray-400 rounded-lg p-3 text-[11px] font-mono space-y-2 max-w-[290px] mx-auto'
+        : 'bg-white border border-gray-200 rounded-xl p-4 text-xs space-y-3';
+
+      area.innerHTML = `
+        <div class="text-center border-b border-gray-200 pb-2.5">
+          <div class="font-extrabold ${isThermal ? 'text-sm' : 'text-base'} text-gray-900">${escapeHTML(merchant.shop_name || merchant.full_name || 'متجر تسعيرتي DZ')}</div>
+          <div class="text-[11px] text-gray-500">${escapeHTML(merchant.wilaya || '')} ${merchant.municipality ? '- ' + escapeHTML(merchant.municipality) : ''}</div>
+          ${merchant.phone ? `<div class="text-[11px] text-gray-600 font-bold" dir="ltr">📞 ${escapeHTML(merchant.phone)}</div>` : ''}
+          ${isFacture ? `
+            <div class="mt-1 text-[10px] text-gray-600 space-x-2 space-x-reverse">
+              ${merSettings.rc_number ? `<span>RC: ${escapeHTML(merSettings.rc_number)}</span>` : ''}
+              ${merSettings.nif_number ? `<span>NIF: ${escapeHTML(merSettings.nif_number)}</span>` : ''}
+              ${merSettings.ai_number ? `<span>AI: ${escapeHTML(merSettings.ai_number)}</span>` : ''}
+            </div>
+          ` : ''}
+          <div class="mt-2 inline-block bg-emerald-50 text-emerald-900 border border-emerald-200 px-3 py-1 rounded-lg font-extrabold text-xs">
+            ${docTitle}
+          </div>
+        </div>
+
+        <div class="flex justify-between text-[11px] text-gray-600 border-b border-gray-100 pb-2">
+          <div>
+            <div><strong>الرقم:</strong> ${escapeHTML(invNumber)}</div>
+            <div><strong>التاريخ:</strong> ${escapeHTML(dateFormatted)}</div>
+          </div>
+          <div class="text-left">
+            <div><strong>الزبون:</strong> ${escapeHTML(customer.full_name || 'زبون')}</div>
+            ${customer.phone ? `<div dir="ltr">${escapeHTML(customer.phone)}</div>` : ''}
+          </div>
+        </div>
+
+        <table class="w-full text-right border-collapse">
+          <thead>
+            <tr class="border-b border-gray-300 text-[11px] text-gray-600">
+              <th class="py-1">السلعة</th>
+              <th class="py-1 text-center">الكمية</th>
+              <th class="py-1 text-left">المبلغ</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-gray-100">
+            ${fin.items.filter(it => it.available !== false).map(it => `
+              <tr>
+                <td class="py-1.5 font-bold text-gray-800">${escapeHTML(it.name)}</td>
+                <td class="py-1.5 text-center text-gray-600">${escapeHTML(it.qty || '1')}</td>
+                <td class="py-1.5 text-left font-extrabold text-gray-900">${Number(it.price || 0).toLocaleString()} دج</td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+
+        <div class="border-t border-gray-300 pt-2 space-y-1">
+          <div class="flex justify-between text-gray-600">
+            <span>مجموع السلع:</span>
+            <span class="font-bold">${fin.productsRevenue.toLocaleString()} دج</span>
+          </div>
+          <div class="flex justify-between text-gray-600">
+            <span>تكلفة التوصيل:</span>
+            <span class="font-bold">${fin.deliveryFee.toLocaleString()} دج</span>
+          </div>
+          <div class="flex justify-between text-sm font-extrabold text-emerald-800 bg-emerald-50 px-2.5 py-1.5 rounded-lg">
+            <span>الإجمالي المستحق:</span>
+            <span>${fin.grandTotal.toLocaleString()} دج</span>
+          </div>
+        </div>
+
+        <div class="pt-2 border-t border-dashed border-gray-200 flex items-center justify-between gap-2">
+          <div class="text-[10px] text-gray-500 leading-relaxed">
+            <div class="font-bold text-gray-700">شكراً لتعاملكم معنا!</div>
+            <div>امسح رمز QR للتحقق من الفاتورة أو إعادة الطلب</div>
+            <div class="text-emerald-700 font-bold mt-0.5">تسعيرتي DZ</div>
+          </div>
+          <img src="${qrImgUrl}" alt="QR" class="w-16 h-16 border border-gray-200 rounded-lg p-0.5 bg-white shrink-0">
+        </div>
+      `;
+
+      const actionsEl = document.getElementById('invoice-modal-actions');
+      const targetPhone = currentProfile.role === 'merchant' ? formatDzWhatsApp(customer.phone || '') : formatDzWhatsApp(merchant.phone || '');
+      const waSummary = `🧾 *${docTitle}*\nرقم: ${invNumber}\nالمحل: ${merchant.shop_name || merchant.full_name}\nالتاريخ: ${dateFormatted}\n------------------\n` +
+        fin.items.filter(it => it.available !== false).map(it => `• ${it.name} (${it.qty}): ${Number(it.price || 0).toLocaleString()} دج`).join('\n') +
+        `\n------------------\n🚚 التوصيل: ${fin.deliveryFee.toLocaleString()} دج\n💰 *الإجمالي: ${fin.grandTotal.toLocaleString()} دج*`;
+
+      actionsEl.innerHTML = `
+        <div class="grid grid-cols-2 gap-2">
+          <button onclick="window.print()" class="bg-gray-900 hover:bg-black text-white font-extrabold py-2.5 rounded-xl text-xs shadow">
+            🖨️ طباعة / حفظ PDF
+          </button>
+          <a href="https://wa.me/${targetPhone}?text=${encodeURIComponent(waSummary)}" target="_blank" class="bg-[#25D366] text-white font-extrabold py-2.5 rounded-xl text-xs text-center shadow">
+            💬 إرسال عبر واتساب
+          </a>
+        </div>
+        ${currentProfile.role === 'customer' ? `
+          <button onclick="reorderFromInvoice()" class="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold py-2.5 rounded-xl text-xs shadow">
+            🔄 إعادة طلب نفس هذه السلة
+          </button>
+        ` : ''}
+      `;
+    }
+
+    function reorderFromInvoice() {
+      if (!activeInvoiceData || !activeInvoiceData.req) return;
+      const req = activeInvoiceData.req;
+      selectedCategory = req.category || 'supermarket';
+      draftReqTitle = req.title.replace(/^\[عرض سريع\]\s*/, '');
+      draftDeliveryType = req.delivery_type || 'delivery';
+      draftItems = (req.items || []).map(it => ({ name: it.name, qty: it.qty || '1' }));
+      closeInvoiceModal();
+      switchTab('home');
+      showToast('🛒 تم نسخ السلة إلى طلب جديد، اضغط إرسال للتسعير الفوري!');
+    }
+
+    function closeInvoiceModal() {
+      document.getElementById('invoice-modal').classList.add('hidden');
+    }
+
     // --- لوحة اللوجيسيال، الاستيراد CSV، وحاسبة التوصيل لـ 58 ولاية ---
     function switchInventorySubTab(sub) {
       inventorySubTab = sub;
@@ -1387,7 +2081,6 @@
             <p class="text-xs text-emerald-100 mt-1">اربط مخزونك أو استورد قائمة الأسعار ليقوم التطبيق بالرد الآلي على طلبات الزبائن فور نشرها!</p>
           </div>
 
-          <!-- شريط التنقل الداخلي للوجيسيال -->
           <div class="grid grid-cols-3 bg-white p-1.5 rounded-2xl border border-gray-100 shadow-sm gap-1">
             <button onclick="switchInventorySubTab('items')" class="py-2 rounded-xl text-xs font-extrabold transition ${inventorySubTab === 'items' ? 'bg-emerald-600 text-white shadow-sm' : 'text-gray-600'}">
               📋 السلع (${merchantInventory.length})
@@ -1401,7 +2094,6 @@
           </div>
 
           ${inventorySubTab === 'pos_sync' ? `
-            <!-- قسم كود الربط البرمجي API واستيراد CSV/Excel -->
             <div class="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 space-y-3">
               <div class="flex items-center justify-between">
                 <h3 class="font-extrabold text-sm text-gray-900">🔑 كود ربط لوجيسيال المحلات (POS API Key)</h3>
@@ -1443,7 +2135,6 @@
           ` : ''}
 
           ${inventorySubTab === 'delivery_58' ? `
-            <!-- قسم حاسبة التوصيل لـ 58 ولاية والرد الآلي -->
             <div class="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 space-y-3">
               <div class="flex items-center justify-between bg-emerald-50 p-3 rounded-xl border border-emerald-100">
                 <div>
@@ -1504,7 +2195,6 @@
           ` : ''}
 
           ${inventorySubTab === 'items' ? `
-            <!-- قسم إضافة وتعديل السلع -->
             <div class="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 space-y-3">
               <h3 class="font-extrabold text-sm text-gray-800">➕ إضافة مادة جديدة للمخزون والرد الآلي</h3>
               <div>
@@ -1599,7 +2289,6 @@
 
       let { error } = await sb.from('merchant_inventory').insert(fullPayload);
       if (error && (error.code === 'PGRST204' || String(error.message).includes('column'))) {
-        // توافق تلقائي في حال لم يُنفذ كود SQL للأعمدة الإضافية بعد
         const fallback = await sb.from('merchant_inventory').insert({
           merchant_id: currentProfile.id,
           item_name: itemName,
@@ -1631,7 +2320,6 @@
       }
     }
 
-    // --- دوال استيراد وتصدير CSV للوجيسيال ---
     function downloadSampleInventoryCSV() {
       const csvContent = "\uFEFFitem_name,unit_price,cost_price,barcode,stock_qty\nزيت المائدة 5ل,750,690,613000112233,40\nسكر أبيض 5كغ,550,510,613000445566,25\nقهوة مطحونة 250غ,380,330,613000778899,50\n";
       const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
@@ -1961,9 +2649,14 @@
                         <a href="https://wa.me/${waPhone}" target="_blank" class="bg-[#25D366] text-white py-2 rounded-xl text-xs font-bold text-center">💬 واتساب</a>
                       </div>
 
-                      <button onclick="markOrderAsDelivered('${req.id}')" class="w-full bg-emerald-700 hover:bg-emerald-800 text-white font-extrabold py-2.5 rounded-xl text-xs shadow">
-                        ✔️ تم التسليم (إنهاء وأرشفة الطلب)
-                      </button>
+                      <div class="grid grid-cols-2 gap-2">
+                        <button onclick="openInvoiceModalForOrder('${req.id}')" class="bg-gray-100 text-gray-800 font-bold py-2.5 rounded-xl text-xs">
+                          🧾 معاينة الفاتورة
+                        </button>
+                        <button onclick="markOrderAsDelivered('${req.id}')" class="bg-emerald-700 hover:bg-emerald-800 text-white font-extrabold py-2.5 rounded-xl text-xs shadow">
+                          ✔️ تم التسليم وإصدار الفاتورة
+                        </button>
+                      </div>
                     </div>`;
                 }).join('')}
             </div>
@@ -2224,11 +2917,15 @@
     }
 
     function renderHistoryView() {
-      if (historyRequests.length === 0) {
-        return `<div class="text-center py-12 bg-white rounded-2xl border border-gray-100 p-6"><div class="text-4xl mb-2">📜</div><p class="font-bold text-gray-700 text-sm">لا توجد طلبات مؤكدة قيد التنفيذ حالياً</p></div>`;
-      }
-      return `<div class="space-y-4"><h2 class="font-extrabold text-sm text-gray-800 px-1">سجل الطلبات المؤكدة والناجحة</h2>
-        ${historyRequests.map(req => {
+      const completedOrders = merchantDeliveredRequests.filter(r => !(r.title || '').startsWith('[بيع مباشر]')).slice(0, 15);
+      return `<div class="space-y-4">
+        <div class="flex justify-between items-center px-1">
+          <h2 class="font-extrabold text-sm text-gray-800">الطلبات المؤكدة قيد التوصيل (${historyRequests.length})</h2>
+          <button onclick="switchTab('profits')" class="bg-emerald-50 text-emerald-700 px-3 py-1 rounded-xl text-xs font-extrabold">💰 الأرباح اليومية</button>
+        </div>
+
+        ${historyRequests.length === 0 ? `<div class="text-center py-8 bg-white rounded-2xl border border-gray-100 p-5"><div class="text-3xl mb-1.5">📜</div><p class="font-bold text-gray-600 text-xs">لا توجد طلبات مؤكدة قيد التوصيل حالياً</p></div>` :
+        historyRequests.map(req => {
           const customer = req.profiles || {};
           const waPhone = formatDzWhatsApp(customer.phone || '');
           const customerLat = req.latitude || customer.latitude;
@@ -2282,11 +2979,38 @@
                 <a href="https://wa.me/${waPhone}" target="_blank" class="bg-[#25D366] text-white py-2 rounded-xl text-xs font-bold text-center">💬 واتساب</a>
               </div>
 
-              <button onclick="markOrderAsDelivered('${req.id}')" class="w-full bg-emerald-700 hover:bg-emerald-800 text-white font-extrabold py-2.5 rounded-xl text-xs shadow">
-                ✔️ تم التوصيل للزبون (إنهاء وأرشفة الطلب)
-              </button>
+              <div class="grid grid-cols-2 gap-2">
+                <button onclick="openInvoiceModalForOrder('${req.id}')" class="bg-gray-100 text-gray-800 font-bold py-2.5 rounded-xl text-xs">
+                  🧾 معاينة الفاتورة
+                </button>
+                <button onclick="markOrderAsDelivered('${req.id}')" class="bg-emerald-700 hover:bg-emerald-800 text-white font-extrabold py-2.5 rounded-xl text-xs shadow">
+                  ✔️ تم التسليم وإصدار الفاتورة
+                </button>
+              </div>
             </div>`;
-        }).join('')}</div>`;
+        }).join('')}
+
+        ${completedOrders.length > 0 ? `
+          <div class="pt-3 border-t border-gray-200 space-y-2.5">
+            <h3 class="font-extrabold text-sm text-gray-800 px-1">📦 طلبات تم تسليمها وأرشفتها (${completedOrders.length}):</h3>
+            ${completedOrders.map(req => {
+              const customer = req.profiles || {};
+              const offer = (req.quote_offers || []).find(o => o.merchant_id === currentProfile.id && o.status === 'accepted');
+              return `
+                <div class="bg-white rounded-2xl p-3.5 shadow-sm border border-gray-100 flex justify-between items-center">
+                  <div>
+                    <div class="font-extrabold text-xs text-gray-900">${escapeHTML(req.title)}</div>
+                    <div class="text-[11px] text-gray-400">الزبون: ${escapeHTML(customer.full_name || 'زبون')} • ${Number(offer?.total_price || 0).toLocaleString()} دج</div>
+                  </div>
+                  <button onclick="openInvoiceModalForOrder('${req.id}')" class="bg-emerald-50 text-emerald-700 border border-emerald-200 px-3 py-1.5 rounded-xl text-xs font-bold">
+                    🧾 الفاتورة
+                  </button>
+                </div>
+              `;
+            }).join('')}
+          </div>
+        ` : ''}
+      </div>`;
     }
 
     async function markOrderAsDelivered(reqId) {
@@ -2294,8 +3018,9 @@
       if (error) {
         showToast('خطأ في الأرشفة: ' + error.message, true);
       } else {
-        showToast('✅ تم تسليم الطلب وأرشفته بنجاح!');
+        showToast('✅ تم تسليم الطلب وإصدار الفاتورة وإضافته لأرباح اليوم!');
         await loadAllData();
+        openInvoiceModalForOrder(reqId);
       }
     }
 
@@ -2528,7 +3253,6 @@
         if (error) {
           showToast('حدث خطأ: ' + error.message, true);
         } else {
-          // تشغيل محرك التسعير الآلي الفوري من لوجيسيال التجار
           const autoRepliesCount = await runInstantAutoPricingForRequest(insertedReq || reqPayload);
 
           draftItems = [];
@@ -2592,9 +3316,10 @@
           });
 
           const catInfo = CATEGORIES[req.category];
+          const isConfirmedOrDelivered = req.status === 'accepted' || req.status === 'delivered';
 
           return `
-            <div class="bg-white rounded-2xl p-4 shadow-sm border ${req.status === 'accepted' ? 'border-emerald-500 bg-emerald-50/20' : 'border-gray-100'} space-y-3">
+            <div class="bg-white rounded-2xl p-4 shadow-sm border ${isConfirmedOrDelivered ? 'border-emerald-500 bg-emerald-50/20' : 'border-gray-100'} space-y-3">
               <div class="flex justify-between items-start gap-2">
                 <div>
                   <div class="flex items-center gap-1.5">
@@ -2604,8 +3329,8 @@
                   <p class="text-[11px] text-gray-400 mt-0.5">📅 ${formatTimeAgo(req.created_at)} • ${req.delivery_type === 'delivery' ? '🚚 توصيل للمنزل' : (req.delivery_type === 'stopdesk' ? '🏢 مكتب التوصيل Stop Desk' : '🏪 استلام من المحل')}</p>
                 </div>
                 <div class="flex items-center gap-1.5 shrink-0">
-                  <span class="text-xs ${req.status === 'accepted' ? 'bg-emerald-600 text-white' : 'bg-emerald-50 text-emerald-700'} px-2.5 py-1 rounded-full font-bold">
-                    ${req.status === 'accepted' ? '✅ مؤكد' : `${offers.length} عروض`}
+                  <span class="text-xs ${req.status === 'delivered' ? 'bg-blue-600 text-white' : (req.status === 'accepted' ? 'bg-emerald-600 text-white' : 'bg-emerald-50 text-emerald-700')} px-2.5 py-1 rounded-full font-bold">
+                    ${req.status === 'delivered' ? '📦 تم الاستلام' : (req.status === 'accepted' ? '✅ مؤكد' : `${offers.length} عروض`)}
                   </span>
                   ${req.status === 'open' ? `<button onclick="cancelCustomerRequest('${req.id}')" class="bg-red-50 text-red-600 px-2 py-1 rounded-lg text-[11px] font-bold">إلغاء</button>` : ''}
                 </div>
@@ -2668,13 +3393,22 @@
                         <a href="https://wa.me/${waPhone}" target="_blank" class="bg-[#25D366] text-white py-1.5 rounded-lg text-xs font-bold text-center">💬 واتساب</a>
                       </div>
 
-                      ${req.status !== 'accepted' ? `
+                      ${!isConfirmedOrDelivered ? `
                         <button onclick="acceptCustomerOffer('${req.id}', '${of.id}')" class="w-full bg-emerald-600 hover:bg-emerald-700 text-white py-2 rounded-lg text-xs font-extrabold shadow">
                           ✔️ تأكيد واختيار هذا العرض والمحل
                         </button>` : (isAccepted ? `
                         <div class="space-y-1.5">
-                          <div class="text-center text-xs font-bold text-emerald-700 bg-emerald-100 py-1.5 rounded-lg">🎉 تم تأكيد الطلب مع التاجر بنجاح</div>
-                          <button onclick="viewUserProfile('${of.merchant_id}')" class="w-full bg-amber-500 text-white py-1.5 rounded-lg text-xs font-bold">⭐ قيّم المحل بعد الاستلام</button>
+                          <div class="text-center text-xs font-bold text-emerald-700 bg-emerald-100 py-1.5 rounded-lg">
+                            ${req.status === 'delivered' ? '🧾 تم استلام الطلب وإصدار فاتورتك' : '🎉 تم تأكيد الطلب مع التاجر بنجاح'}
+                          </div>
+                          <div class="grid grid-cols-2 gap-2">
+                            <button onclick="openInvoiceModalForOrder('${req.id}')" class="bg-gray-900 text-white py-2 rounded-lg text-xs font-extrabold shadow-sm">
+                              🧾 الفاتورة / PDF
+                            </button>
+                            <button onclick="viewUserProfile('${of.merchant_id}')" class="bg-amber-500 text-white py-2 rounded-lg text-xs font-bold">
+                              ⭐ قيّم المحل
+                            </button>
+                          </div>
                         </div>` : '')}
                     </div>`;
                 }).join('')}
@@ -2784,10 +3518,12 @@
       if (reqObj && reqObj.items && reqObj.items.length > 0) {
         pricedItems = reqObj.items.map((it, idx) => {
           const itemPrice = Number(document.getElementById(`item-price-${reqId}-${idx}`)?.value || 0);
+          const matchedInv = matchInventoryItem(it, merchantInventory);
           return {
             name: it.name,
             qty: it.qty,
             price: itemPrice,
+            cost_price: matchedInv ? Number(matchedInv.cost_price || 0) : 0,
             available: itemPrice > 0
           };
         });
@@ -2806,12 +3542,18 @@
       else { showToast('✅ تم إرسال تسعيرتك بنجاح!'); await loadAllData(); }
     }
 
+    function toggleFiscalFields(val) {
+      const box = document.getElementById('fiscal-fields-box');
+      if (box) box.classList.toggle('hidden', val !== 'facture');
+    }
+
     function renderProfileView() {
       const isMerchant = currentProfile.role === 'merchant';
       const avatarDisplay = editAvatarUrl || currentProfile.avatar_url;
       const avatarHtml = avatarDisplay
         ? `<img src="${escapeHTML(avatarDisplay)}" class="w-20 h-20 rounded-full object-cover mx-auto border-2 border-emerald-500 shadow-sm mb-2">`
         : `<div class="w-20 h-20 bg-emerald-100 text-emerald-700 rounded-full mx-auto flex items-center justify-center text-3xl font-extrabold mb-2">${isMerchant ? '🏪' : '👤'}</div>`;
+      const merSettings = isMerchant ? getDeliverySettingsForMerchant(currentProfile) : {};
 
       return `
         <div class="bg-white rounded-2xl p-5 shadow-sm border border-gray-100 space-y-4">
@@ -2856,6 +3598,21 @@
               </div>
             </div>
 
+            ${isMerchant ? `
+              <div class="bg-gray-50 p-3 rounded-xl border border-gray-200 space-y-2.5">
+                <div class="text-xs font-extrabold text-gray-800">🧾 إعدادات الفوترة والوصل للزبائن:</div>
+                <select id="edit-invoice-type" onchange="toggleFiscalFields(this.value)" class="w-full px-3 py-2 rounded-xl border border-gray-200 text-xs bg-white font-bold outline-none">
+                  <option value="bon" ${merSettings.invoice_type !== 'facture' ? 'selected' : ''}>وصل شراء / استلام (Bon d'achat)</option>
+                  <option value="facture" ${merSettings.invoice_type === 'facture' ? 'selected' : ''}>فاتورة رسمية جبائية (Facture)</option>
+                </select>
+                <div id="fiscal-fields-box" class="${merSettings.invoice_type === 'facture' ? '' : 'hidden'} grid grid-cols-3 gap-1.5">
+                  <input type="text" id="edit-rc" value="${escapeHTML(merSettings.rc_number || '')}" placeholder="رقم RC" class="px-2 py-1.5 rounded-lg border border-gray-200 bg-white text-[11px] outline-none">
+                  <input type="text" id="edit-nif" value="${escapeHTML(merSettings.nif_number || '')}" placeholder="رقم NIF" class="px-2 py-1.5 rounded-lg border border-gray-200 bg-white text-[11px] outline-none">
+                  <input type="text" id="edit-ai" value="${escapeHTML(merSettings.ai_number || '')}" placeholder="رقم AI" class="px-2 py-1.5 rounded-lg border border-gray-200 bg-white text-[11px] outline-none">
+                </div>
+              </div>
+            ` : ''}
+
             <div class="bg-emerald-50/60 p-3 rounded-xl border border-emerald-100 flex items-center justify-between">
               <div>
                 <div class="text-xs font-bold text-emerald-900">📍 تثبيت موقع المحل المباشر</div>
@@ -2889,6 +3646,16 @@
       if (shopName !== null) updateData.shop_name = shopName;
       if (category !== null) updateData.category = category;
       if (editAvatarUrl) updateData.avatar_url = editAvatarUrl;
+
+      if (currentProfile.role === 'merchant') {
+        const curSettings = getDeliverySettingsForMerchant(currentProfile);
+        curSettings.invoice_type = document.getElementById('edit-invoice-type')?.value || 'bon';
+        curSettings.rc_number = (document.getElementById('edit-rc')?.value || '').trim();
+        curSettings.nif_number = (document.getElementById('edit-nif')?.value || '').trim();
+        curSettings.ai_number = (document.getElementById('edit-ai')?.value || '').trim();
+        updateData.delivery_settings = curSettings;
+        localStorage.setItem(`tasairati_delivery_58_${currentProfile.id}`, JSON.stringify(curSettings));
+      }
 
       const { error } = await sb.from('profiles').update(updateData).eq('id', currentProfile.id);
 
