@@ -4032,16 +4032,47 @@
       }
     });
   </script>
+    <script>
+      window.OneSignalDeferred = window.OneSignalDeferred || [];
+      window.OneSignalDeferred.push(async function(OneSignal) {
+        await OneSignal.init({
+          appId: "598d034c-3d51-4e39-bf11-ae84a66dc028",
+        });
 
-  <script src="https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.page.js" defer></script>
-  <script>
-    window.OneSignalDeferred = window.OneSignalDeferred || [];
-    window.OneSignalDeferred.push(async function(OneSignal) {
-      await OneSignal.init({
-        appId: "598d034c-3d51-4e39-bf11-ae84a66dc028",
+        async function linkUser() {
+          try {
+            let uid = (window.currentUser && window.currentUser.id) || (window.currentProfile && window.currentProfile.id) || null;
+            if (!uid) {
+              for (let i = 0; i < localStorage.length; i++) {
+                const k = localStorage.key(i);
+                if (k && k.startsWith("sb-") && k.endsWith("-auth-token")) {
+                  const parsed = JSON.parse(localStorage.getItem(k) || "{}");
+                  uid = parsed?.user?.id || parsed?.currentSession?.user?.id || null;
+                  if (uid) break;
+                }
+              }
+            }
+            if (uid && OneSignal.User?.externalId !== String(uid)) {
+              await OneSignal.login(String(uid));
+            }
+          } catch (e) {}
+        }
+
+        await linkUser();
+        setInterval(linkUser, 4000);
+
+        document.addEventListener("click", async function(e) {
+          const btn = e.target.closest("button");
+          if (btn && (btn.textContent.includes("🔔") || (btn.getAttribute("onclick") || "").toLowerCase().includes("notif"))) {
+            try {
+              await OneSignal.Notifications.requestPermission();
+              await linkUser();
+            } catch (err) {}
+          }
+        }, true);
       });
-    });
-  </script>
+    </script>
+
   <script>
     if ('serviceWorker' in navigator) {
       navigator.serviceWorker.register('/sw.js').catch(() => {});
