@@ -4032,11 +4032,14 @@
       }
     });
   </script>
+  
     <script>
       window.OneSignalDeferred = window.OneSignalDeferred || [];
       window.OneSignalDeferred.push(async function(OneSignal) {
         await OneSignal.init({
           appId: "598d034c-3d51-4e39-bf11-ae84a66dc028",
+          serviceWorkerPath: "sw.js",
+          serviceWorkerParam: { scope: "/" },
         });
 
         async function linkUser() {
@@ -4062,9 +4065,13 @@
         setInterval(linkUser, 4000);
 
         document.addEventListener("click", async function(e) {
-          const btn = e.target.closest("button");
-          if (btn && (btn.textContent.includes("🔔") || (btn.getAttribute("onclick") || "").toLowerCase().includes("notif"))) {
+          const el = e.target.closest("button, [onclick], [role='button'], a, div, span");
+          if (el && ((el.textContent || "").includes("🔔") || (el.getAttribute("onclick") || "").toLowerCase().includes("notif"))) {
             try {
+              if ("Notification" in window && Notification.permission === "denied") {
+                alert("الإشعارات محظورة من إعدادات المتصفح. افتح إعدادات الموقع بجانب الرابط في الأعلى وفعّل الإشعارات.");
+                return;
+              }
               await OneSignal.Notifications.requestPermission();
               await linkUser();
             } catch (err) {}
