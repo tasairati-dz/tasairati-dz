@@ -2878,28 +2878,32 @@
   }
 
   async function submitProUpgradeReceipt() {
-    if (!proReceiptImageData) {
-      return showToast('يرجى إرفاق صورة وصل التحويل أو الدفع أولاً', true);
-    }
-    const btn = document.getElementById('submit-pro-receipt-btn');
-    btn.disabled = true;
-    btn.textContent = 'جاري إرسال الوصل...';
-
-    try {
-      await sb.from('pro_upgrade_requests').insert({
-        merchant_id: currentProfile.id,
-        shop_name: currentProfile.shop_name || currentProfile.full_name,
-        phone: currentProfile.phone,
-        receipt_url: proReceiptImageData,
-        status: 'pending'
-      });
-    } catch (e) {}
-
-    btn.disabled = false;
-    btn.textContent = 'إرسال الوصل وتفعيل باقة PRO';
-    closeProUpgradeModal();
-    showToast('تم استلام وصل الدفع بنجاح! سيتم تفعيل باقة PRO لحسابك خلال دقائق.');
+  if (!proReceiptImageData) {
+    return showToast("يرجى إرفاق صورة وصل التحويل أو الدفع أولاً", true);
   }
+  const btn = document.getElementById('submit-pro-receipt-btn');
+  btn.disabled = true;
+  btn.textContent = '...جاري إرسال الوصل';
+
+  const { error } = await sb.from('subscription_requests').insert({
+    merchant_id: currentProfile.id,
+    merchant_name: currentProfile.shop_name || currentProfile.full_name,
+    phone: currentProfile.phone,
+    receipt_url: proReceiptImageData,
+    status: 'pending'
+  });
+
+  btn.disabled = false;
+  btn.textContent = 'إرسال الوصل وتفعيل باقة PRO';
+
+  if (error) {
+    return showToast('فشل إرسال الوصل: ' + error.message, true);
+  }
+
+  closeProUpgradeModal();
+  showToast('تم استلام وصل الدفع بنجاح! سيتم تفعيل باقة PRO لحسابك خلال دقائق.');
+}
+
 
   async function logoutUser() {
     if (sb) await sb.auth.signOut();
