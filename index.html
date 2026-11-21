@@ -35,7 +35,32 @@
       window.OneSignalDeferred.push(async function(OneSignal) {
         await OneSignal.init({
           appId: ONESIGNAL_APP_ID,
-          allowLocalhostAsSecureOrigin: true
+          allowLocalhostAsSecureOrigin: true,
+          serviceWorkerPath: 'sw.js',
+          serviceWorkerParam: { scope: '/' }
+        });
+      });
+    }
+
+    // تسجيل Service Worker (ضروري لظهور زر التثبيت) مع تحديث تلقائي عند نشر نسخة جديدة
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('/sw.js', { scope: '/', updateViaCache: 'none' }).then((reg) => {
+          reg.update();
+          reg.addEventListener('updatefound', () => {
+            const nw = reg.installing;
+            if (!nw) return;
+            nw.addEventListener('statechange', () => {
+              if (nw.state === 'installed' && navigator.serviceWorker.controller) nw.postMessage('SKIP_WAITING');
+            });
+          });
+        }).catch((e) => console.warn('SW registration failed', e));
+
+        let swReloaded = false;
+        navigator.serviceWorker.addEventListener('controllerchange', () => {
+          if (swReloaded) return;
+          swReloaded = true;
+          window.location.reload();
         });
       });
     }
@@ -765,8 +790,15 @@
   function normalizeArabicText(str) {
     if (!str) return '';
     return String(str)
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
       .toLowerCase()
+      .replace(/œ/g, 'oe')
+      .replace(/æ/g, 'ae')
       .replace(/[\u064B-\u065F\u0670]/g, '')
+      .replace(/[\u0640]/g, '')
+      .replace(/[-_.,'’]/g, ' ')
+      .replace(/\s+/g, ' ')
       .replace(/[أإآ]/g, 'ا')
       .replace(/ى/g, 'ي')
       .replace(/ة/g, 'ه')
@@ -1233,6 +1265,29 @@
     const permission = await Notification.requestPermission();
     if (permission === 'granted') showToast('تم تفعيل الإشعارات الفورية بنجاح');
     else showToast('يرجى السماح بالإشعارات من إعدادات المتصفح', true);
+  }
+
+  // إرسال إشعار OneSignal خارج التطبيق عبر Edge Function (مفتاح REST API يبقى على الخادم فقط)
+  async function sendPushNotification(userIds, title, body, data = {}) {
+    try {
+      const ids = (userIds || []).filter(Boolean).map(String);
+      if (!sb || ids.length === 0) return;
+      await sb.functions.invoke('send-push', { body: { user_ids: ids, title, body, data } });
+    } catch (e) {
+      console.warn('send-push failed', e);
+    }
+  }
+
+  async function notifyMerchantsInWilaya(wilaya, category, title, body, data = {}) {
+    try {
+      let q = sb.from('profiles').select('id').eq('role', 'merchant').eq('wilaya', wilaya);
+      if (category) q = q.or(`category.eq.${category},category.is.null`);
+      const { data: mers } = await q.limit(500);
+      const ids = (mers || []).map(m => m.id).filter(id => id !== currentProfile?.id);
+      if (ids.length) await sendPushNotification(ids, title, body, data);
+    } catch (e) {
+      console.warn('notifyMerchantsInWilaya failed', e);
+    }
   }
 
   function triggerBackgroundNotification(title, body) {
@@ -2532,6 +2587,26 @@
     renderCurrentTab();
   }
 
+  function findInventoryMatch(name) {
+    const n = normalizeArabicText(name);
+    if (!n) return null;
+    const exact = merchantInventory.find(i => normalizeArabicText(i.item_name) === n);
+    if (exact) return exact;
+    const partial = merchantInventory.filter(i => {
+      const inv = normalizeArabicText(i.item_name);
+      return inv && (inv.includes(n) || n.includes(inv));
+    });
+    if (partial.length === 1) return partial[0];
+    const words = n.split(' ').filter(w => w.length > 1);
+    let best = null, bestScore = 0;
+    merchantInventory.forEach(i => {
+      const invWords = normalizeArabicText(i.item_name).split(' ');
+      const score = words.filter(w => invWords.includes(w)).length / Math.max(words.length, invWords.length);
+      if (score > bestScore) { bestScore = score; best = i; }
+    });
+    return bestScore >= 0.6 ? best : null;
+  }
+
   function renderMerchantProfitView() {
     const settings = getDeliverySettingsForMerchant(currentProfile);
     const savedPin = settings.profit_pin;
@@ -2562,7 +2637,13 @@
 
     const dsList = JSON.parse(localStorage.getItem(`tasairati_direct_sales_${currentProfile.id}`) || '[]');
     const dayDs = dsList.filter(x => getLocalDateKey(x.created_at) === selectedProfitDate);
-    const dayOrders = merchantDeliveredRequests.filter(r => getLocalDateKey(r.created_at) === selectedProfitDate);
+    const orderDateKey = (r) => getLocalDateKey(r.delivered_at || r.updated_at || r.created_at);
+    const seenOrderIds = new Set();
+    const dayOrders = merchantDeliveredRequests.filter(r => {
+      if (seenOrderIds.has(String(r.id))) return false;
+      seenOrderIds.add(String(r.id));
+      return orderDateKey(r) === selectedProfitDate;
+    });
 
     let totalRevenue = 0;
     let totalCost = 0;
@@ -2573,21 +2654,23 @@
       totalCost += Number(s.cost_price || 0) * q;
     });
 
+    const orderDetails = {};
     dayOrders.forEach(r => {
-      const off = (r.quote_offers || []).find(o => o.id === r.chosen_offer_id);
-      if (off) {
-        const deliv = Number(off.delivery_fee || 0);
-        const itemsRev = Math.max(0, Number(off.total_price || 0) - deliv);
-        totalRevenue += itemsRev;
-        if (Array.isArray(off.items_prices)) {
-          off.items_prices.forEach(ip => {
-            const invMatch = merchantInventory.find(i => normalizeArabicText(i.item_name) === normalizeArabicText(ip.name));
-            if (invMatch && invMatch.cost_price) {
-              totalCost += Number(invMatch.cost_price) * (Number(ip.qty) || 1);
-            }
-          });
-        }
-      }
+      const off = (r.quote_offers || []).find(o => String(o.id) === String(r.chosen_offer_id));
+      if (!off) return;
+      const deliv = Number(off.delivery_fee || 0);
+      const itemsRev = Math.max(0, Number(off.total_price || 0) - deliv);
+      let orderCost = 0;
+      const lines = (Array.isArray(off.items_prices) ? off.items_prices : []).map(ip => {
+        const qty = Number(ip.qty) || 1;
+        const inv = findInventoryMatch(ip.name);
+        const cost = inv && inv.cost_price ? Number(inv.cost_price) * qty : 0;
+        orderCost += cost;
+        return { name: ip.name, qty, price: Number(ip.price || ip.unit_price || 0) * qty, cost, matched: !!inv };
+      });
+      totalRevenue += itemsRev;
+      totalCost += orderCost;
+      orderDetails[r.id] = { lines, itemsRev, deliv, orderCost, profit: itemsRev - orderCost };
     });
 
     const netProfit = totalRevenue - totalCost;
@@ -2639,14 +2722,32 @@
           `).join('')}
 
           ${dayOrders.map(r => {
-            const off = (r.quote_offers || []).find(o => o.id === r.chosen_offer_id);
+            const off = (r.quote_offers || []).find(o => String(o.id) === String(r.chosen_offer_id));
+            const d = orderDetails[r.id];
             return `
-              <div class="bg-white p-3.5 rounded-2xl border border-emerald-100 shadow-sm flex justify-between items-center">
-                <div>
-                  <div class="font-extrabold text-xs text-gray-900">📦 طلب تطبيق: ${escapeHTML(r.title)}</div>
-                  <div class="text-[11px] text-gray-500">${escapeHTML(r.customer_name)} • ${off ? Number(off.total_price).toLocaleString() + ' دج' : ''}</div>
+              <div class="bg-white p-3.5 rounded-2xl border border-emerald-100 shadow-sm space-y-2">
+                <div class="flex justify-between items-center">
+                  <div>
+                    <div class="font-extrabold text-xs text-gray-900">📦 طلب تطبيق: ${escapeHTML(r.title)}</div>
+                    <div class="text-[11px] text-gray-500">${escapeHTML(r.customer_name)} • ${off ? Number(off.total_price).toLocaleString() + ' دج' : ''}</div>
+                  </div>
+                  <button type="button" onclick="openInvoiceModal('order', '${r.id}')" class="bg-emerald-50 text-emerald-700 px-3 py-1.5 rounded-xl text-[11px] font-extrabold">📄 الفاتورة</button>
                 </div>
-                <button type="button" onclick="openInvoiceModal('order', '${r.id}')" class="bg-emerald-50 text-emerald-700 px-3 py-1.5 rounded-xl text-[11px] font-extrabold">📄 الفاتورة</button>
+                ${d ? `
+                <details class="text-[11px]">
+                  <summary class="cursor-pointer font-bold text-emerald-700">تفاصيل الربح: ${d.profit.toLocaleString()} دج</summary>
+                  <div class="mt-1.5 space-y-1">
+                    ${d.lines.map(l => `
+                      <div class="flex justify-between text-gray-600">
+                        <span>${escapeHTML(l.name)} × ${l.qty}${l.matched ? '' : ' <span class="text-amber-600">(بدون سعر شراء)</span>'}</span>
+                        <span>${l.cost ? 'تكلفة ' + l.cost.toLocaleString() + ' دج' : '-'}</span>
+                      </div>`).join('')}
+                    <div class="flex justify-between border-t border-gray-100 pt-1 font-bold text-gray-800">
+                      <span>السلع ${d.itemsRev.toLocaleString()} • التوصيل ${d.deliv.toLocaleString()}</span>
+                      <span>التكلفة ${d.orderCost.toLocaleString()} دج</span>
+                    </div>
+                  </div>
+                </details>` : ''}
               </div>
             `;
           }).join('')}
@@ -2831,10 +2932,18 @@
       updates.delivery_settings = currentSettings;
     }
 
-    const { error } = await sb.from('profiles').update(updates).eq('id', currentProfile.id);
+    const saveBtn = document.querySelector('button[onclick="saveProfileUpdates()"]');
+    if (saveBtn) saveBtn.disabled = true;
+    const { data: savedRows, error } = await sb.from('profiles').update(updates).eq('id', currentProfile.id).select('id');
+    if (saveBtn) saveBtn.disabled = false;
+    if (!error && (!savedRows || savedRows.length === 0)) {
+      return showToast('لم يتم الحفظ: تحقق من صلاحيات RLS لجدول profiles (طبّق ملف SQL المرفق)', true);
+    }
     if (error) {
       showToast('خطأ في حفظ التعديلات: ' + error.message, true);
     } else {
+      Object.assign(currentProfile, updates);
+      localStorage.setItem('tasairati_cached_profile', JSON.stringify(currentProfile));
       editAvatarUrl = null;
       showToast('تم حفظ التعديلات بنجاح');
       await loadUserProfile();
@@ -2852,7 +2961,9 @@
     document.getElementById('pro-upgrade-modal').classList.add('hidden');
   }
 
+  let proPaymentMethod = 'baridimob';
   function switchProPaymentMethod(method) {
+    proPaymentMethod = method;
     ['baridimob', 'ccp', 'redotpay'].forEach(m => {
       const tab = document.getElementById(`pro-tab-${m}`);
       const box = document.getElementById(`pro-pay-${m}`);
@@ -2885,13 +2996,40 @@
   btn.disabled = true;
   btn.textContent = '...جاري إرسال الوصل';
 
-  const { error } = await sb.from('subscription_requests').insert({
+  const fullPayload = {
     merchant_id: currentProfile.id,
-    merchant_name: currentProfile.shop_name || currentProfile.full_name,
-    phone: currentProfile.phone,
+    merchant_name: currentProfile.shop_name || currentProfile.full_name || '',
+    phone: normalizeDzPhone(currentProfile.phone || ''),
     receipt_url: proReceiptImageData,
+    payment_method: proPaymentMethod,
+    amount: 1000,
+    plan: 'pro_monthly',
     status: 'pending'
-  });
+  };
+
+  const { data: pendingReqs } = await sb
+    .from('subscription_requests')
+    .select('id')
+    .eq('merchant_id', currentProfile.id)
+    .eq('status', 'pending')
+    .limit(1);
+  if (pendingReqs && pendingReqs.length > 0) {
+    btn.disabled = false;
+    btn.textContent = 'إرسال الوصل وتفعيل باقة PRO';
+    return showToast('لديك طلب ترقية قيد المراجعة بالفعل. سيتم تفعيله قريباً.', true);
+  }
+
+  let { error } = await sb.from('subscription_requests').insert(fullPayload);
+
+  // توافق مؤقت: إذا لم تُطبَّق أعمدة SQL الجديدة بعد، نرسل الحقول الأساسية فقط
+  if (error && (error.code === 'PGRST204' || /column/i.test(error.message || ''))) {
+    console.warn('subscription_requests: أعمدة ناقصة، طبّق ملف supabase/migrations', error.message);
+    ({ error } = await sb.from('subscription_requests').insert({
+      merchant_id: fullPayload.merchant_id,
+      receipt_url: fullPayload.receipt_url,
+      status: 'pending'
+    }));
+  }
 
   btn.disabled = false;
   btn.textContent = 'إرسال الوصل وتفعيل باقة PRO';
@@ -3178,6 +3316,10 @@
       return showToast('يرجى كتابة عنوان العرض وخيار كمية وسعر واحد على الأقل', true);
     }
 
+    if (!currentProfile.wilaya) return showToast('يرجى تحديد ولايتك في الملف الشخصي قبل نشر العرض', true);
+    const publishBtn = document.querySelector('button[onclick="publishFlashDeal()"]');
+    if (publishBtn) { publishBtn.disabled = true; publishBtn.textContent = 'جاري النشر...'; }
+
     const expiresAt = new Date(Date.now() + durationHours * 3600000).toISOString();
     const { error } = await sb.from('flash_deals').insert({
       merchant_id: currentProfile.id,
@@ -3190,11 +3332,14 @@
       expires_at: expiresAt
     });
 
+    if (publishBtn) { publishBtn.disabled = false; publishBtn.textContent = 'نشر العرض السريع'; }
+
     if (error) {
       showToast('خطأ في نشر العرض: ' + error.message, true);
     } else {
       dealTiers = [{ label: '1 وحدة', price: '' }];
       dealImageUrl = null;
+      notifyMerchantsInWilaya(currentProfile.wilaya, null, '⚡ عرض سريع جديد', `${currentProfile.shop_name || 'تاجر'}: ${title}`, { type: 'flash_deal' });
       showToast('تم نشر العرض السريع بنجاح!');
       await loadAllData();
     }
@@ -3443,6 +3588,7 @@
         items_prices: [{ name: `${activeDealForModal.title} (${tierLabel})`, qty: 1, unit_price: basePrice, subtotal: basePrice }],
         notes: `⚡ طلب مباشر من العرض السريع (${tierLabel})`
       });
+      sendPushNotification([activeDealForModal.merchant_id], '🛍️ طلب جديد على عرضك السريع', `${currentProfile.full_name || 'زبون'} طلب: ${activeDealForModal.title} (${tierLabel})`, { request_id: reqData.id });
     }
 
     btn.disabled = false;
@@ -3828,6 +3974,7 @@
     }
 
     await runInstantAutoPricingForRequest(newReq);
+    notifyMerchantsInWilaya(wilaya, selectedCategory, '🛒 طلب تسعيرة جديد', `طلب جديد في ${wilaya}: ${title}`, { request_id: newReq.id });
 
     draftItems = [];
     draftReqTitle = '';
@@ -3841,7 +3988,22 @@
   }
 
   // --- شاشة طلباتي وعروض الأسعار المستلمة للزبون (مع شارة PRO) ---
+  let showArchivedOrders = false;
   function renderCustomerOrders() {
+    const archivedCount = myRequests.filter(r => r.archived_by_customer).length;
+    const visibleRequests = myRequests.filter(r => showArchivedOrders ? r.archived_by_customer : !r.archived_by_customer);
+    const archiveToggle = `
+      <div class="flex justify-end">
+        <button type="button" onclick="showArchivedOrders=!showArchivedOrders; renderCurrentTab();" class="text-[11px] font-extrabold px-3 py-1.5 rounded-lg ${showArchivedOrders ? 'bg-gray-800 text-white' : 'bg-white text-gray-600 border border-gray-200'}">
+          ${showArchivedOrders ? '← العودة للطلبات النشطة' : `الأرشيف (${archivedCount})`}
+        </button>
+      </div>`;
+    if (showArchivedOrders && visibleRequests.length === 0) {
+      return `<div class="space-y-3">${archiveToggle}<div class="text-center py-10 bg-white rounded-2xl border border-gray-100 text-xs text-gray-400 font-bold">لا توجد طلبات مؤرشفة</div></div>`;
+    }
+    if (!showArchivedOrders && visibleRequests.length === 0 && archivedCount > 0) {
+      return `<div class="space-y-3">${archiveToggle}<div class="text-center py-10 bg-white rounded-2xl border border-gray-100 text-xs text-gray-400 font-bold">كل طلباتك في الأرشيف</div></div>`;
+    }
     if (myRequests.length === 0) {
       return `
         <div class="text-center py-12 bg-white rounded-2xl border border-gray-100 p-6 space-y-2">
@@ -3863,7 +4025,9 @@
           </div>
         </div>
 
-        ${myRequests.map(req => {
+        ${archiveToggle}
+
+        ${visibleRequests.map(req => {
           const offers = [...(req.quote_offers || [])];
           const minPrice = offers.length > 0 ? Math.min(...offers.map(o => Number(o.total_price))) : 0;
 
@@ -3895,6 +4059,7 @@
                   <p class="text-[11px] text-gray-400">📍 ${escapeHTML(req.wilaya)} • ${formatTimeAgo(req.created_at)}</p>
                 </div>
                 ${req.status === 'open' ? `<button type="button" onclick="cancelCustomerRequest('${req.id}')" class="text-[11px] text-red-500 font-bold">إلغاء الطلب</button>` : ''}
+                ${req.status !== 'open' ? `<button type="button" onclick="archiveCustomerRequest('${req.id}', ${!req.archived_by_customer})" class="text-[11px] text-gray-500 font-bold underline">${req.archived_by_customer ? 'استرجاع' : 'أرشفة'}</button>` : ''}
               </div>
 
               <div class="flex flex-wrap gap-1">
@@ -3955,15 +4120,37 @@
   }
 
   async function chooseOffer(requestId, offerId) {
-    const { error } = await sb
+    const req = myRequests.find(r => String(r.id) === String(requestId));
+    if (req && req.status !== 'open') return showToast('تم اختيار عرض لهذا الطلب مسبقاً', true);
+    const offer = (req?.quote_offers || []).find(o => String(o.id) === String(offerId));
+    if (!confirm('تأكيد قبول هذا العرض؟ سيتم إشعار التاجر فوراً.')) return;
+
+    const { data, error } = await sb
       .from('quote_requests')
       .update({ status: 'accepted', chosen_offer_id: offerId })
-      .eq('id', requestId);
-    if (error) showToast('خطأ في قبول العرض', true);
-    else {
-      showToast('تم قبول العرض بنجاح! يمكنك الآن التواصل مع التاجر');
-      await loadAllData();
+      .eq('id', requestId)
+      .eq('customer_id', currentProfile.id)
+      .eq('status', 'open')
+      .select('id');
+    if (error) return showToast('خطأ في قبول العرض: ' + error.message, true);
+    if (!data || data.length === 0) return showToast('تعذر قبول العرض (ربما تم تحديث الطلب)', true);
+
+    if (offer?.merchant_id) {
+      sendPushNotification([offer.merchant_id], '✅ تم قبول عرضك!', `قبل الزبون تسعيرتك لطلب: ${req?.title || ''}`, { request_id: requestId });
     }
+    showToast('تم قبول العرض بنجاح! يمكنك الآن التواصل مع التاجر');
+    await loadAllData();
+  }
+
+  async function archiveCustomerRequest(requestId, archived = true) {
+    const { error } = await sb
+      .from('quote_requests')
+      .update({ archived_by_customer: archived })
+      .eq('id', requestId)
+      .eq('customer_id', currentProfile.id);
+    if (error) return showToast('خطأ في الأرشفة: ' + error.message, true);
+    showToast(archived ? 'تم نقل الطلب إلى الأرشيف' : 'تم استرجاع الطلب من الأرشيف');
+    await loadAllData();
   }
 
   async function confirmDelivery(requestId) {
@@ -3979,15 +4166,21 @@
   }
 
   async function cancelCustomerRequest(requestId) {
+    if (!confirm('هل تريد إلغاء هذا الطلب؟')) return;
+    const req = myRequests.find(r => String(r.id) === String(requestId));
     const { error } = await sb
       .from('quote_requests')
       .update({ status: 'cancelled' })
-      .eq('id', requestId);
-    if (error) showToast('خطأ في إلغاء الطلب', true);
-    else {
-      showToast('تم إلغاء الطلب');
-      await loadAllData();
+      .eq('id', requestId)
+      .eq('customer_id', currentProfile.id);
+    if (error) return showToast('خطأ في إلغاء الطلب: ' + error.message, true);
+
+    const merchantIds = [...new Set((req?.quote_offers || []).map(o => o.merchant_id).filter(Boolean))];
+    if (merchantIds.length) {
+      sendPushNotification(merchantIds, 'تم إلغاء طلب', `ألغى الزبون الطلب: ${req?.title || ''}`, { request_id: requestId });
     }
+    showToast('تم إلغاء الطلب');
+    await loadAllData();
   }
 
   // --- لوحة التاجر الرئيسية (الطلبات الواردة وإرسال التسعيرة) ---
@@ -4141,6 +4334,10 @@
     if (error) {
       showToast('خطأ في إرسال العرض: ' + error.message, true);
     } else {
+      const reqObj = openRequests.find(r => String(r.id) === String(requestId));
+      if (reqObj?.customer_id) {
+        sendPushNotification([reqObj.customer_id], '💰 عرض سعر جديد', `${currentProfile.shop_name || 'تاجر'} أرسل تسعيرة: ${totalPrice.toLocaleString()} دج`, { request_id: requestId });
+      }
       showToast('تم إرسال تسعيرتك للزبون بنجاح!');
       await loadAllData();
     }
